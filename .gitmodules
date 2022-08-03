@@ -1,3 +1,4 @@
 [submodule "external/EinsumsInCpp"]
 	path = external/EinsumsInCpp
 	url = https://github.com/jturney/EinsumsInCpp.git
+	ignore = dirty
