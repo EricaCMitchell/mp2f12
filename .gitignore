@@ -11,5 +11,6 @@
 **/__pycache__
 *.out
 **/output.dat
+**/timer.dat
 
 
