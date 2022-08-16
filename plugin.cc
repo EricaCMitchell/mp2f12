@@ -1,7 +1,7 @@
 /*
  * @BEGIN LICENSE
  *
- * mp2f12 by Psi4 Developer, a plugin to:
+ * MP2F12 by Psi4 Developer, a plugin to:
  *
  * Psi4: an open-source quantum chemistry software package
  *
@@ -61,7 +61,7 @@
 #include "einsums/Print.hpp"
 #include "einsums/STL.hpp"
 
-namespace psi{ namespace mp2f12 {
+namespace psi{ namespace MP2F12 {
 
 extern "C" PSI_API
 int read_options(std::string name, Options& options)
@@ -945,7 +945,7 @@ void B_Tilde(einsums::Tensor<double, 2> *B_s, einsums::Tensor<double, 2> *B_t, e
 }
 
 extern "C" PSI_API
-SharedWavefunction mp2f12(SharedWavefunction ref_wfn, Options& options)
+SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
 {
     int PRINT = options.get_int("PRINT");
     bool WRITE_INTS = options.get_bool("WRITE_INTS");
@@ -1107,6 +1107,7 @@ SharedWavefunction mp2f12(SharedWavefunction ref_wfn, Options& options)
         outfile->Printf("      B Intermediate\n");
         B_mat(B.get(), Uf.get(), F2.get(), F.get(), C.get(), fk.get(), k.get(), nocc, nobs, ncabs, nri);
     }
+
     timer::pop(); // F12 INTS
     timer::pop(); // Form all the INTS
 

@@ -29,16 +29,17 @@
 #
 
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+set(CMAKE_CXX_STANDARD 17)
 
-project(mp2f12 CXX)
+project(MP2F12 CXX)
 
 find_package(psi4 1.1 REQUIRED)
 
-add_psi4_plugin(mp2f12 plugin.cc)
+add_psi4_plugin(MP2F12 plugin.cc)
 
 add_subdirectory(external)
 
-target_link_libraries(mp2f12
+target_link_libraries(MP2F12
     PUBLIC
         einsums
 )

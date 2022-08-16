@@ -1,7 +1,7 @@
 #
 # @BEGIN LICENSE
 #
-# mp2f12 by Psi4 Developer, a plugin to:
+# MP2F12 by Psi4 Developer, a plugin to:
 #
 # Psi4: an open-source quantum chemistry software package
 #
@@ -33,7 +33,7 @@ import psi4.driver.p4util as p4util
 from psi4.driver.procrouting import proc_util
 from psi4.core import OrbitalSpace
 
-def run_mp2f12(name, **kwargs):
+def run_MP2F12(name, **kwargs):
     r"""Function encoding sequence of PSI module and plugin calls so that
     mp2f12 can be called via :py:func:`~driver.energy`. For post-scf plugins.
 
@@ -61,13 +61,13 @@ def run_mp2f12(name, **kwargs):
 
     # Call the Psi4 plugin
     # Please note that setting the reference wavefunction in this way is ONLY for plugins
-    mp2f12_wfn = psi4.core.plugin('mp2f12.so', ref_wfn)
+    mp2f12_wfn = psi4.core.plugin('MP2F12.so', ref_wfn)
 
     return mp2f12_wfn
 
 
 # Integration with driver routines
-psi4.driver.procedures['energy']['mp2f12'] = run_mp2f12
+psi4.driver.procedures['energy']['mp2f12'] = run_MP2F12
 
 def build_cabs(wfn):
     '''
