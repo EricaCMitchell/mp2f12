@@ -8,3 +8,7 @@ Dependencies:
 - Libint 1
 - EinsumsInCpp
 
+Cloning:
+- Run "git clone ..."
+- Run "git submodule init"
+- Run "git submodule update"
