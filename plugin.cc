@@ -850,16 +850,31 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
     timer::pop(); // Forming
 }
 
-void V_Tilde(einsums::Tensor<double, 1> *V_s, einsums::Tensor<double, 1> *V_t,
-             einsums::TensorView<double, 2> V_, einsums::Tensor<double, 4> *C, 
-             einsums::TensorView<double, 2> K_ij, einsums::TensorView<double, 2> D_ij,
-             int i, int j, int n_s, int n_t, int nocc, int nobs)
+double t_(int p, int q, int r, int s) 
+{
+    auto t_amp = 0.0;
+    if (p == r && q == s && p != q) {
+        t_amp = 0.25;
+    } else if (q == r && p == s && q != p) {
+        t_amp = 0.125;
+    } else if (p == q == r == s) {
+        t_amp = 0.5;
+    }
+    return t_amp;
+}
+
+std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Tensor<double, 4> *C, 
+                                  einsums::TensorView<double, 2> K_ij, einsums::TensorView<double, 2> D_ij,
+                                  int i, int j, int n_s, int n_t, int nocc, int nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
     auto nvir = nobs - nocc;
+    auto V_s = 0.0;
+    auto V_t = 0.0;
+    int kd;
 
     timer::push("Forming the V_Tilde Matrices");
     timer::push("Allocations");
@@ -874,34 +889,40 @@ void V_Tilde(einsums::Tensor<double, 1> *V_s, einsums::Tensor<double, 1> *V_t,
     timer::pop();
 
     timer::push("V Singlet Vector");
-    for (int k = 0, p = 0; k < nocc; k++) {
-        for (int l = k; l < nocc; l++, p++) {
-            (*V_s)(p) = 0.5 * ((*V_ij)(k,l) + (*V_ij)(l,k));
+    for (int k = 0; k < nocc; k++) {
+        for (int l = k; l < nocc; l++) {
+            ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
+            V_s -= 0.5 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd * ((*V_ij)(k,l) + (*V_ij)(l,k));
         }
     }
     timer::pop();
 
     if ( i != j ) {
         timer::push("V Triplet Vector");
-        for (int k = 0, p = 0; k < nocc - 1; k++) {
-            for (int l = k + 1; l < nocc; l++, p++) {
-                (*V_t)(p) = 0.5 * ((*V_ij)(k,l) - (*V_ij)(l,k));
+        for (int k = 0; k < nocc - 1; k++) {
+            for (int l = k + 1; l < nocc; l++) {
+                ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
+                V_t -= 0.5 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd * ((*V_ij)(k,l) - (*V_ij)(l,k));
             }
         }
         timer::pop();
     }
     timer::pop(); // Forming
+    return {V_s, V_t};
 }
 
-void B_Tilde(einsums::Tensor<double, 2> *B_s, einsums::Tensor<double, 2> *B_t, einsums::Tensor<double, 4> *B_, 
-             einsums::Tensor<double, 4> *C, einsums::TensorView<double, 2> D_ij, 
-             int i, int j, int n_s, int n_t, int nocc, int nobs)
+std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tensor<double, 4> *C, 
+                                  einsums::TensorView<double, 2> D_ij, 
+                                  int i, int j, int n_s, int n_t, int nocc, int nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
     auto nvir = nobs - nocc;
+    auto B_s = 0.0;
+    auto B_t = 0.0;
+    int kd;
 
     timer::push("Forming the B_Tilde Matrices");
     timer::push("Allocations");
@@ -917,11 +938,14 @@ void B_Tilde(einsums::Tensor<double, 2> *B_s, einsums::Tensor<double, 2> *B_t, e
     timer::pop();
 
     timer::push("B Singlet Matrix");
-    for (int k = 0, p = 0; k < nocc; k++) {
-        for (int l = k; l < nocc; l++, p++) {
-            for (int m = 0, q = 0; m < nocc; m++) {
-                for (int n = m; n < nocc; n++, q++) {
-                    (*B_s)(p, q) = 0.5 * ((*B_ij)(k,l,m,n) + (*B_ij)(l,k,m,n));
+    for (int k = 0; k < nocc; k++) {
+        for (int l = k; l < nocc; l++) {
+            ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
+            for (int m = 0; m < nocc; m++) {
+                for (int n = m; n < nocc; n++) {
+                    B_s -= 0.125 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd 
+                               * ((*B_ij)(k,l,m,n) + (*B_ij)(l,k,m,n))
+                               * (t_(i,j,m,n) + t_(i,j,n,m));
                 }
             }
         }
@@ -930,11 +954,14 @@ void B_Tilde(einsums::Tensor<double, 2> *B_s, einsums::Tensor<double, 2> *B_t, e
 
     if ( i != j ) {
         timer::push("B Triplet Matrix");
-        for (int k = 0, p = 0; k < nocc - 1; k++) {
-            for (int l = k + 1; l < nocc; l++, p++) {
-                for (int m = 0, q = 0; m < nocc - 1; m++) {
-                    for (int n = m + 1; n < nocc; n++, q++) {
-                        (*B_t)(p, q) = 0.5 * ((*B_ij)(k,l,m,n) - (*B_ij)(l,k,m,n));
+        for (int k = 0; k < nocc - 1; k++) {
+            for (int l = k + 1; l < nocc; l++) {
+                ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
+                for (int m = 0; m < nocc - 1; m++) {
+                    for (int n = m + 1; n < nocc; n++) {
+                        B_t -= 0.125 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd 
+                                   * ((*B_ij)(k,l,m,n) - (*B_ij)(l,k,m,n))
+                                   * (t_(i,j,m,n) - t_(i,j,n,m));;
                     }
                 }
             }
@@ -942,6 +969,7 @@ void B_Tilde(einsums::Tensor<double, 2> *B_s, einsums::Tensor<double, 2> *B_t, e
         timer::pop();
     }
     timer::pop(); // Forming
+    return {B_s, B_t};
 }
 
 extern "C" PSI_API
@@ -1111,9 +1139,9 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     timer::pop(); // F12 INTS
     timer::pop(); // Form all the INTS
 
-    // Compute the MP2F12/3C Energy //
+    // Compute the mp2f12/3C Energy //
     outfile->Printf("\n  ==> Computing F12/3C Energy Correction <==\n");
-    timer::push("MP2F12/3C Energy");
+    timer::push("mp2f12/3C Energy");
     timer::push("Allocations");
     auto n_s = (nocc * (nocc + 1)) / 2;
     auto n_t = (nocc * (nocc - 1)) / 2;
@@ -1134,14 +1162,8 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     for (int i = nfrzn; i < nocc; i++) {
         for (int j = i; j < nocc; j++) {
             // Allocations
-            auto V_s = std::make_unique<Tensor<double, 1>>("V Singlet", n_s);
-            auto V_t = std::make_unique<Tensor<double, 1>>("V Triplet", n_t);
-            auto B_s = std::make_unique<Tensor<double, 2>>("B Singlet", n_s, n_s);
-            auto B_t = std::make_unique<Tensor<double, 2>>("B Triplet", n_t, n_t);
             auto X_ = std::make_unique<Tensor<double, 4>>("Scaled X", nocc, nocc, nocc, nocc);
             auto B_ = std::make_unique<Tensor<double, 4>>("B ij", nocc, nocc, nocc, nocc);
-            auto temp_s = std::make_unique<Tensor<double, 1>>("Singlet Temp", n_s);
-            auto temp_t = std::make_unique<Tensor<double, 1>>("Triplet Temp", n_t);
             (*X_) = (*X)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
             (*B_) = (*B)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
             // Building B_
@@ -1156,31 +1178,21 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
                                             Stride<2>{G_.stride(2), G_.stride(3)}};
             auto D_ = TensorView<double, 2>{(*D), Dim<2>{nobs-nocc, nobs-nocc}, Offset<4>{i, j, 0, 0},
                                             Stride<2>{(*D).stride(2), (*D).stride(3)}};
-            V_Tilde(V_s.get(), V_t.get(), V_, C.get(), K_, D_, i, j, n_s, n_t, nocc, nobs);
-            B_Tilde(B_s.get(), B_t.get(), B_.get(), C.get(), D_, i, j, n_s, n_t, nocc, nobs);
+            auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, n_s, n_t, nocc, nobs);
+            auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, n_s, n_t, nocc, nobs);
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
-            linear_algebra::invert(B_s.get()); 
-            linear_algebra::gemv<true>(-1.0, *B_s, *V_s, 0.0, temp_s.get());
-            auto E_s = kd * linear_algebra::dot(*temp_s, *V_s);
+            auto E_s = kd * (VT.first + BT.first);
             E_f12_s = E_f12_s + E_s;
             auto E_t = 0.0;
             if ( i != j ) {
-                linear_algebra::invert(B_t.get()); 
-                linear_algebra::gemv<true>(-1.0, *B_t, *V_t, 0.0, temp_t.get());
-                E_t = kd * linear_algebra::dot(*temp_t, *V_t);
+                E_t = kd * (VT.second + BT.second);
                 E_f12_t = E_f12_t + E_t;
             }
             auto E_f = E_s + (3.0 * E_t);
             outfile->Printf("%3d %3d  |   %16.12f   %16.12f     %16.12f \n", i+1, j+1, E_s, E_t, E_f);
-            V_s.reset();
-            V_t.reset();
-            B_s.reset();
-            B_t.reset();
             X_.reset();
             B_.reset();
-            temp_s.reset();
-            temp_t.reset();
         }
     }
     E_f12_t = 3.0 * E_f12_t;
@@ -1193,7 +1205,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
     outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
     outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
-    timer::pop(); // MP2F12/3C Energy
+    timer::pop(); // mp2f12/3C Energy
 
     timer::report();
     timer::finalize();
@@ -1203,4 +1215,3 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
 }
 
 }} // End namespaces
-
