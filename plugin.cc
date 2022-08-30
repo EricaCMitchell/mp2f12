@@ -855,9 +855,9 @@ double t_(int p, int q, int r, int s)
     auto t_amp = 0.0;
     if (p == r && q == s && p != q) {
         t_amp = 0.25;
-    } else if (q == r && p == s && q != p) {
+    } else if (q == r && p == s && p != q) {
         t_amp = 0.125;
-    } else if (p == q == r == s) {
+    } else if (p == q && p == r && p == s) {
         t_amp = 0.5;
     }
     return t_amp;
@@ -892,7 +892,7 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
     for (int k = 0; k < nocc; k++) {
         for (int l = k; l < nocc; l++) {
             ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-            V_s -= 0.5 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd * ((*V_ij)(k,l) + (*V_ij)(l,k));
+            V_s += (t_(i,j,k,l) + t_(i,j,l,k)) * kd * ((*V_ij)(k,l) + (*V_ij)(l,k));
         }
     }
     timer::pop();
@@ -902,7 +902,7 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
         for (int k = 0; k < nocc - 1; k++) {
             for (int l = k + 1; l < nocc; l++) {
                 ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-                V_t -= 0.5 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd * ((*V_ij)(k,l) - (*V_ij)(l,k));
+                V_t += (t_(i,j,k,l) - t_(i,j,l,k)) * kd * ((*V_ij)(k,l) - (*V_ij)(l,k));
             }
         }
         timer::pop();
@@ -943,7 +943,7 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
             ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
             for (int m = 0; m < nocc; m++) {
                 for (int n = m; n < nocc; n++) {
-                    B_s -= 0.125 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd 
+                    B_s += 0.5 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd 
                                * ((*B_ij)(k,l,m,n) + (*B_ij)(l,k,m,n))
                                * (t_(i,j,m,n) + t_(i,j,n,m));
                 }
@@ -959,9 +959,9 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
                 ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
                 for (int m = 0; m < nocc - 1; m++) {
                     for (int n = m + 1; n < nocc; n++) {
-                        B_t -= 0.125 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd 
+                        B_t += 0.5 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd
                                    * ((*B_ij)(k,l,m,n) - (*B_ij)(l,k,m,n))
-                                   * (t_(i,j,m,n) - t_(i,j,n,m));;
+                                   * (t_(i,j,m,n) - t_(i,j,n,m));
                     }
                 }
             }
