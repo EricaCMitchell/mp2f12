@@ -1154,7 +1154,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
                                             Stride<2>{(*D).stride(2), (*D).stride(3)}};
             auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, n_s, n_t, nocc, nobs);
             auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, n_s, n_t, nocc, nobs);
-            println("Vs {} :: Bs {} :: Vt {} :: Bt {}", VT.first, BT.first, VT.second, BT.second);
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
             auto E_s = kd * (VT.first + BT.first);
