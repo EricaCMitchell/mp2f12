@@ -865,7 +865,7 @@ double t_(int p, int q, int r, int s)
 
 std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Tensor<double, 4> *C, 
                                   einsums::TensorView<double, 2> K_ij, einsums::TensorView<double, 2> D_ij,
-                                  int i, int j, int n_s, int n_t, int nocc, int nobs)
+                                  int i, int j, int nocc, int nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -904,7 +904,7 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
 
 std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tensor<double, 4> *C, 
                                   einsums::TensorView<double, 2> D_ij, 
-                                  int i, int j, int n_s, int n_t, int nocc, int nobs)
+                                  int i, int j, int nocc, int nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -1117,8 +1117,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("\n  ==> Computing F12/3C Energy Correction <==\n");
     timer::push("mp2f12/3C Energy");
     timer::push("Allocations");
-    auto n_s = (nocc * (nocc + 1)) / 2;
-    auto n_t = (nocc * (nocc - 1)) / 2;
     auto E_f12_s = 0.0;
     auto E_f12_t = 0.0;
     auto E_core = 0.0;
@@ -1152,8 +1150,8 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
                                             Stride<2>{G_.stride(2), G_.stride(3)}};
             auto D_ = TensorView<double, 2>{(*D), Dim<2>{nobs-nocc, nobs-nocc}, Offset<4>{i, j, 0, 0},
                                             Stride<2>{(*D).stride(2), (*D).stride(3)}};
-            auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, n_s, n_t, nocc, nobs);
-            auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, n_s, n_t, nocc, nobs);
+            auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, nocc, nobs);
+            auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, nocc, nobs);
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
             auto E_s = kd * (VT.first + BT.first);

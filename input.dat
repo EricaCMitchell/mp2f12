@@ -18,8 +18,8 @@ symmetry c1
 }
 
 set {
-  BASIS cc-pvdz-f12
-  CABS_BASIS cc-pvdz-f12-optri
+  BASIS aug-cc-pvdz
+  CABS_BASIS cc-pvdz-jkfit
   SCF_TYPE pk
   E_CONVERGENCE 1.e-10
   D_CONVERGENCE 1.e-10
