@@ -854,9 +854,9 @@ double t_(int p, int q, int r, int s)
 {
     auto t_amp = 0.0;
     if (p == r && q == s && p != q) {
-        t_amp = 0.25;
+        t_amp = 3.0/8.0;
     } else if (q == r && p == s && p != q) {
-        t_amp = 0.125;
+        t_amp = 1.0/8.0;
     } else if (p == q && p == r && p == s) {
         t_amp = 0.5;
     }
@@ -886,25 +886,16 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
     timer::push("Perform einsums");
     einsum(Indices{a, b}, &KD, Indices{a, b}, K_ij, Indices{a, b}, D_ij);
     einsum(1.0, Indices{k, l}, &V_ij, -1.0, Indices{k, l, a, b}, *C, Indices{a, b}, KD);
+    ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
     timer::pop();
 
     timer::push("V Singlet Vector");
-    for (int k = 0; k < nocc; k++) {
-        for (int l = k; l < nocc; l++) {
-            ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-            V_s += (t_(i,j,k,l) + t_(i,j,l,k)) * kd * ((*V_ij)(k,l) + (*V_ij)(l,k));
-        }
-    }
+    V_s += 0.5 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd * ((*V_ij)(i,j) + (*V_ij)(j,i));
     timer::pop();
 
     if ( i != j ) {
         timer::push("V Triplet Vector");
-        for (int k = 0; k < nocc - 1; k++) {
-            for (int l = k + 1; l < nocc; l++) {
-                ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-                V_t += (t_(i,j,k,l) - t_(i,j,l,k)) * kd * ((*V_ij)(k,l) - (*V_ij)(l,k));
-            }
-        }
+        V_t += 0.5 * (t_(i,j,i,j) - t_(i,j,j,i)) * kd * ((*V_ij)(i,j) - (*V_ij)(j,i));
         timer::pop();
     }
     timer::pop(); // Forming
@@ -929,6 +920,7 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     auto B_ij = std::make_unique<Tensor<double, 4>>("B = B - X * (fii +fjj)", nocc, nocc, nocc, nocc);
     auto CD = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, nvir);
     (*B_ij) = (*B_);
+    ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
     timer::pop(); 
 
     timer::push("Perform einsums");
@@ -938,34 +930,16 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     timer::pop();
 
     timer::push("B Singlet Matrix");
-    for (int k = 0; k < nocc; k++) {
-        for (int l = k; l < nocc; l++) {
-            ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-            for (int m = 0; m < nocc; m++) {
-                for (int n = m; n < nocc; n++) {
-                    B_s += 0.5 * (t_(i,j,k,l) + t_(i,j,l,k)) * kd 
-                               * ((*B_ij)(k,l,m,n) + (*B_ij)(l,k,m,n))
-                               * (t_(i,j,m,n) + t_(i,j,n,m));
-                }
-            }
-        }
-    }
+    B_s += 0.125 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd 
+               * ((*B_ij)(i,j,i,j) + (*B_ij)(j,i,i,j))
+               * (t_(i,j,i,j) + t_(i,j,j,i)) * kd;
     timer::pop();
 
     if ( i != j ) {
         timer::push("B Triplet Matrix");
-        for (int k = 0; k < nocc - 1; k++) {
-            for (int l = k + 1; l < nocc; l++) {
-                ( k == l ) ? ( kd = 1 ) : ( kd = 2 );
-                for (int m = 0; m < nocc - 1; m++) {
-                    for (int n = m + 1; n < nocc; n++) {
-                        B_t += 0.5 * (t_(i,j,k,l) - t_(i,j,l,k)) * kd
-                                   * ((*B_ij)(k,l,m,n) - (*B_ij)(l,k,m,n))
-                                   * (t_(i,j,m,n) - t_(i,j,n,m));
-                    }
-                }
-            }
-        }
+        B_t += 0.125 * (t_(i,j,i,j) - t_(i,j,j,i)) * kd
+                   * ((*B_ij)(i,j,i,j) - (*B_ij)(j,i,i,j))
+                   * (t_(i,j,i,j) - t_(i,j,j,i)) * kd;
         timer::pop();
     }
     timer::pop(); // Forming
@@ -1180,6 +1154,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
                                             Stride<2>{(*D).stride(2), (*D).stride(3)}};
             auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, n_s, n_t, nocc, nobs);
             auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, n_s, n_t, nocc, nobs);
+            println("Vs {} :: Bs {} :: Vt {} :: Bt {}", VT.first, BT.first, VT.second, BT.second);
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
             auto E_s = kd * (VT.first + BT.first);
