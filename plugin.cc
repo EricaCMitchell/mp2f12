@@ -809,19 +809,19 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     FC_mat(FC.get(), F, C, nocc, nobs);
 
     timer::push("Building B Unsymmetrized Tensor");
-    (*B_temp_1) = *FF; 
+    (*B_temp_1) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc}); 
     tensor_algebra::element([](double const &val1, double const &val2, 
-                               double const &val3)
-                            -> double { return val1 - val2 - val3 ; }, &(*B_temp_1), *Y, *FC);
+                               double const &val3, double const &val4)
+                            -> double { return val1 + val2 - val3 - val4 ; },
+                            &(*B_temp_1), *FF, *Y, *FC);
     sort(Indices{m, n, k, l}, &B_temp_2, Indices{k, l, m, n}, B_temp_1);
     timer::pop();
 
     timer::push("Building B Tensor");
-    (*B) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
-    tensor_algebra::element([](double const &val1, double const &val2,
-                               double const &val3)
-                            -> double { return val1 + (0.5 * (val2 + val3)); }, 
-                            &(*B), *B_temp_1, *B_temp_2);
+    (*B) = *B_temp_1;
+    tensor_algebra::element([](double const &val1, double const &val2)
+                            -> double { return (0.5 * (val1 + val2)); }, 
+                            &(*B), *B_temp_2);
     timer::pop();
     timer::pop(); // Forming
 }
