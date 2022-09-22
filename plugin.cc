@@ -878,7 +878,7 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
 
     timer::push("Forming the V_Tilde Matrices");
     timer::push("Allocations");
-    auto V_ij = std::make_unique<Tensor<double, 2>>("V(:, :, i, j)", nocc, nocc);
+    auto V_ij = std::make_unique<Tensor<double, 2>>("V(i, j, :, :)", nocc, nocc);
     auto KD = std::make_unique<Tensor<double, 2>>("Temp 1", nvir, nvir);
     (*V_ij) = V_;
     timer::pop(); 
