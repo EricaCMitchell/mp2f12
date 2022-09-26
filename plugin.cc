@@ -677,7 +677,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
     timer::push("Term 1");
     (*B) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
-    print_r4_tensor(B);
     timer::pop();
 
     timer::push("Term 2");
@@ -687,7 +686,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
     einsum(Indices{l, k, n, m}, &tmp_1, Indices{l, k, n, I}, F2_ooo1, Indices{m, I}, fk_o1);
     sort(Indices{k, l, m, n}, &B_term_2, Indices{l, k, n, m}, tmp_1);
-    print_r4_tensor(B_term_2.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                         -> double { return val1 + val2; }, &(*B_term_2), *tmp_1);
     tmp_1.reset();        
@@ -701,7 +699,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, B, A}, &tmp_1, Indices{l, k, B, C}, F_oo11, Indices{C, A}, *kk);
     einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, B, A}, tmp_1, Indices{n, m, B, A}, F_oo11);
     sort(Indices{k, l, m, n}, &B_term_3, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_3.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                         -> double { return val1 + val2; }, &(*B_term_3), *tmp_2);
     tmp_1.reset();
@@ -716,7 +713,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, j, A}, &tmp_1, Indices{l, k, j, C}, F_ooo1, Indices{C, A}, *f);
     einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, j, A}, tmp_1, Indices{n, m, j, A}, F_ooo1);
     sort(Indices{k, l, m, n}, &B_term_4, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_4.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                     -> double { return val1 + val2; }, &(*B_term_4), *tmp_2);
     tmp_1.reset();
@@ -732,7 +728,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, p, i}, &tmp_1, Indices{l, k, p, j}, F_ooco, Indices{j, i}, f_oo);
     einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, p, i}, tmp_1, Indices{n, m, p, i}, F_ooco);
     sort(Indices{k, l, m, n}, &B_term_5, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_5.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                     -> double { return val1 + val2; }, &(*B_term_5), *tmp_2);
     tmp_1.reset();
@@ -748,7 +743,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, b, p}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, p}, f_pq);
     einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, b, p}, tmp_1, Indices{n, m, b, p}, F_oovq);
     sort(Indices{k, l, m, n}, &B_term_6, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_6.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                     -> double { return val1 + val2; }, &(*B_term_6), *tmp_2);
     tmp_1.reset();
@@ -764,7 +758,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, p, j}, &tmp_1, Indices{l, k, p, I}, F_ooc1, Indices{j, I}, f_o1);
     einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, p, j}, tmp_1, Indices{n, m, p, j}, F_ooco);
     sort(Indices{k, l, m, n}, &B_term_7, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_7.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                     -> double { return val1 + val2; }, &(*B_term_7), *tmp_2);
     tmp_1.reset();
@@ -780,7 +773,6 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     einsum(Indices{l, k, b, q}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, q}, f_pc);
     einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, b, q}, tmp_1, Indices{n, m, b, q}, F_oovc);
     sort(Indices{k, l, m, n}, &B_term_8, Indices{l, k, n, m}, tmp_2);
-    print_r4_tensor(B_term_8.get());
     tensor_algebra::element([](double const &val1, double const &val2)
                     -> double { return val1 + val2; }, &(*B_term_8), *tmp_2);
     tmp_1.reset();
@@ -1081,7 +1073,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
         C_mat(C.get(), F.get(), f.get(), nocc, nobs, ncabs); 
         outfile->Printf("      B Intermediate\n");
         B_mat(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get(), nocc, nobs, ncabs, nri);
-        print_r4_tensor(B.get());
     }
 
     timer::pop(); // F12 INTS
