@@ -71,6 +71,7 @@ int read_options(std::string name, Options& options)
         options.add_int("PRINT", 0);
         options.add_bool("WRITE_INTS", false);
         options.add_bool("READ_INTS", false);
+        options.add_bool("CABS_SINGLES", true);
     }
 
     return true;
@@ -911,6 +912,21 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     return {B_s, B_t};
 }
 
+double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nobs, int ncabs) 
+{
+    double singles = 0;
+    int all_vir = (nobs - nocc) + ncabs;
+    for (int a = 0; a < all_vir; a++) {
+        for (int i = 0; i < nocc; i++) {
+            auto num = ((*f)(i, a) * (*f)(i, a));
+            auto denom = ((*f)(i, i) - (*f)(a, a));
+            println(" {} :: {} ", num, denom);
+            singles += num / denom;
+        }
+    }
+    return singles;
+}
+
 extern "C" PSI_API
 SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
 {
@@ -918,6 +934,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     bool WRITE_INTS = options.get_bool("WRITE_INTS");
     bool READ_INTS = options.get_bool("READ_INTS");
     auto FRZN = options.get_str("FREEZE_CORE");
+    bool SINGLES = options.get_bool("CABS_SINGLES");
 
     outfile->Printf("   --------------------------------------------\n");
     outfile->Printf("                    MP2-F12/3C                 \n");
@@ -1135,6 +1152,11 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     E_f12_t = 3.0 * E_f12_t;
     auto E_f12 = E_f12_s + E_f12_t; 
 
+    double singles = 0.0;
+    if (SINGLES == true) {
+        singles = cabs_singles(f.get(), nocc, nobs, ncabs);
+    }
+
     auto e_mp2 = ref_wfn->energy();
     outfile->Printf("  \n");
     outfile->Printf(" Total MP2-F12/3C Energy:             %16.12f \n", e_mp2 + E_f12);
@@ -1142,6 +1164,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
     outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
     outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
+    outfile->Printf("    CABS Singles Correction:          %16.12f \n", singles);
     timer::pop(); // mp2f12/3C Energy
 
     timer::report();

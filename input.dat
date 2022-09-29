@@ -27,6 +27,7 @@ set {
   MP2_TYPE conv
   MAXITER 150
   FREEZE_CORE false
+  CABS_SINGLES true
 }
 
 set MP2F12 {
