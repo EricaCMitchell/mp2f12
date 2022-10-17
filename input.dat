@@ -19,7 +19,7 @@ symmetry c1
 
 set {
   BASIS aug-cc-pvdz
-  CABS_BASIS aug-cc-pvdz-jkfit
+  CABS_BASIS cc-pvdz-jkfit
   SCF_TYPE pk
   E_CONVERGENCE 1.e-10
   D_CONVERGENCE 1.e-10

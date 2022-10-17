@@ -780,6 +780,7 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop();
 
     timer::push("Building the B Matrix");
+    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nocc);
     tensor_algebra::element([](double const &val1, double const &val2, double const &val3,
                                double const &val4, double const &val5, double const &val6,
                                double const &val7, double const &val8) 
@@ -787,6 +788,9 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
                                         - val7 - val8; }, 
                             &(*B), *B_term_2, *B_term_3, *B_term_4, *B_term_5,
                             *B_term_6, *B_term_7, *B_term_8);
+    sort(Indices{m, n, k, l}, &tmp_1, Indices{k, l, m, n}, (*B));
+    tensor_algebra::element([](double const &val1, double const &val2)
+                    -> double { return 0.5 * (val1 + val2); }, &(*B), *tmp_1);
     timer::pop();
     timer::pop(); // Forming
 }
@@ -1154,14 +1158,25 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     auto e_mp2 = ref_wfn->energy();
     outfile->Printf("  \n");
     outfile->Printf(" Total MP2-F12/3C Energy:             %16.12f \n", e_mp2 + E_f12);
-    outfile->Printf("    MP2 Energy:                       %16.12f \n", e_mp2);
-    outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
-    outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
-    outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
+    outfile->Printf("    F12/3C Singlet Correlation:       %16.12f \n", E_f12_s);
+    outfile->Printf("    F12/3C Triplet Correlation:       %16.12f \n", E_f12_t);
+    outfile->Printf("    F12/3C Total Correlation:         %16.12f \n", E_f12);
     timer::pop(); // MP2F12/3C Energy
 
     timer::report();
     timer::finalize();
+
+    auto myMap1 = ref_wfn->scalar_variables();
+    for(auto it = myMap1.cbegin(); it != myMap1.cend(); ++it)
+    {
+        std::cout << it->first << " " << it->second << "\n";
+    }
+    
+    auto myMap2 = ref_wfn->array_variables();
+    for(auto it = myMap2.cbegin(); it != myMap2.cend(); ++it)
+    {
+        std::cout << it->first << " " << it->second << "\n";
+    }
 
     // Typically you would build a new wavefunction and populate it with data
     return ref_wfn;
