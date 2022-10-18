@@ -1166,18 +1166,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     timer::report();
     timer::finalize();
 
-    auto myMap1 = ref_wfn->scalar_variables();
-    for(auto it = myMap1.cbegin(); it != myMap1.cend(); ++it)
-    {
-        std::cout << it->first << " " << it->second << "\n";
-    }
-    
-    auto myMap2 = ref_wfn->array_variables();
-    for(auto it = myMap2.cbegin(); it != myMap2.cend(); ++it)
-    {
-        std::cout << it->first << " " << it->second << "\n";
-    }
-
     // Typically you would build a new wavefunction and populate it with data
     return ref_wfn;
 }
