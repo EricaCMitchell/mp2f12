@@ -780,6 +780,7 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop();
 
     timer::push("Building the B Matrix");
+    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nocc);
     tensor_algebra::element([](double const &val1, double const &val2, double const &val3,
                                double const &val4, double const &val5, double const &val6,
                                double const &val7, double const &val8) 
@@ -787,6 +788,9 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
                                         - val7 - val8; }, 
                             &(*B), *B_term_2, *B_term_3, *B_term_4, *B_term_5,
                             *B_term_6, *B_term_7, *B_term_8);
+    sort(Indices{m, n, k, l}, &tmp_1, Indices{k, l, m, n}, (*B));
+    tensor_algebra::element([](double const &val1, double const &val2)
+                    -> double { return 0.5 * (val1 + val2); }, &(*B), *tmp_1);
     timer::pop();
     timer::pop(); // Forming
 }
