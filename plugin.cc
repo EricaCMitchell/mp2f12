@@ -693,12 +693,13 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop();
 
     timer::push("Term 3");
-    TensorView<double, 4> F_oo11{(*F), Dim<4>{nocc, nocc, nri, nri}, Offset<4>{0,0,0,0}};
+    TensorView<double, 4> F_oo11_temp{(*F), Dim<4>{nocc, nocc, nri, nri}, Offset<4>{0,0,0,0}};
+    Tensor F_oo11 = F_oo11_temp;
     tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nri, nri);
     auto tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, B, A}, &tmp_1, Indices{l, k, B, C}, F_oo11, Indices{C, A}, *kk);
-    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, B, A}, tmp_1, Indices{n, m, B, A}, F_oo11);
+    einsum(Indices{l, k, P, A}, &tmp_1, Indices{l, k, P, C}, F_oo11, Indices{C, A}, *kk);
+    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, P, A}, tmp_1, Indices{n, m, P, A}, F_oo11);
     sort(Indices{k, l, m, n}, &B_term_3, Indices{l, k, n, m}, tmp_2);
     tensor_algebra::element([](double const &val1, double const &val2)
                         -> double { return val1 + val2; }, &(*B_term_3), *tmp_2);
@@ -1082,9 +1083,9 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     timer::pop(); // F12 INTS
     timer::pop(); // Form all the INTS
 
-    // Compute the mp2f12/3C Energy //
+    // Compute the MP2F12/3C Energy //
     outfile->Printf("\n  ==> Computing F12/3C Energy Correction <==\n");
-    timer::push("mp2f12/3C Energy");
+    timer::push("MP2F12/3C Energy");
     timer::push("Allocations");
     auto E_f12_s = 0.0;
     auto E_f12_t = 0.0;
@@ -1146,7 +1147,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
     outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
     outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
-    timer::pop(); // mp2f12/3C Energy
+    timer::pop(); // MP2F12/3C Energy
 
     timer::report();
     timer::finalize();
