@@ -469,7 +469,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
             sort(Indices{Q, P, S, R}, &QPSR, Indices{R, S, P, Q}, RSPQ);
             timer::pop();
             timer::push("Put into ERI Tensor");
-            if (int_type != "F") {
+            if (int_type == "G") {
                 TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
 #pragma omp parallel for collapse(4)
                 for (int l = 0; l < nmo4; l++){
@@ -504,7 +504,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
     } // end of for loop
 }
 
-void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *j, einsums::Tensor<double, 2> *k, 
+void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
             einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *t, einsums::Tensor<double, 2> *v, 
             einsums::Tensor<double, 4> *G, int nocc, int nri ) 
 {
@@ -523,6 +523,7 @@ void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *j, einsum
 
     auto G1_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri, nri, nocc, nocc);
     auto G2_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri, nri, nocc, nocc);
+    auto j = std::make_unique<Tensor<double, 2>>("Coulomb MO Integral", nri, nri);
     timer::pop();
 
     timer::push("Sort piqI, piIq -> pqiI, pqiI");
@@ -531,7 +532,7 @@ void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *j, einsum
     timer::pop();
     
     timer::push("Contract to Rank 2");
-    einsum(Indices{p, q}, &(*j), Indices{p, q, i, I}, G1_pqiI, Indices{i, I}, Id);
+    einsum(Indices{p, q}, &j, Indices{p, q, i, I}, G1_pqiI, Indices{i, I}, Id);
     einsum(Indices{p, q}, &(*k), Indices{p, q, i, I}, G2_pqiI, Indices{i, I}, Id);
     timer::pop();
 
@@ -1041,7 +1042,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     timer::push("F12 INTS");
     timer::push("F12 INTS Allocations");
     auto f = std::make_unique<Tensor<double, 2>>("Fock Matrix", nri, nri);
-    auto j = std::make_unique<Tensor<double, 2>>("Coulomb MO Integral", nri, nri);
     auto k = std::make_unique<Tensor<double, 2>>("Exchange MO Integral", nri, nri);
     auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri, nri);
     auto V = std::make_unique<Tensor<double, 4>>("V Intermediate Tensor", nocc, nocc, nocc, nocc);
@@ -1068,7 +1068,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
         write_ints_disk(B.get(), nocc, nocc, nocc, nocc);
     } else {
         outfile->Printf("      Fock Matrix\n");
-        f_mats(f.get(), j.get(), k.get(), fk.get(), t.get(), v.get(), G.get(), nocc, nri);
+        f_mats(f.get(), k.get(), fk.get(), t.get(), v.get(), G.get(), nocc, nri);
         outfile->Printf("      V Intermediate\n");
         V_mat(V.get(), F.get(), G.get(), FG.get(), nocc, nobs, ncabs); 
         outfile->Printf("      X Intermediate\n");
