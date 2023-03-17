@@ -552,10 +552,8 @@ void C_mat(einsums::Tensor<double, 4> *C, einsums::Tensor<double, 4> *F, einsums
     auto tmp = std::make_unique<Tensor<double, 4>>("Temp", nocc, nocc, nvir, nvir);
 
     einsum(Indices{k, l, a, b}, &tmp, Indices{k, l, a, q}, F_oovc, Indices{b, q}, f_vc);
-    sort(Indices{k, l, a, b}, &(*C), Indices{l, k, b, a}, tmp);
-
-    tensor_algebra::element([](double const &val1, double const &val2)
-                            -> double { return val1 + val2; }, &(*C), *tmp);
+    sort(Indices{k, l, a, b}, &(*C), Indices{k, l, a, b}, tmp);
+    sort(1.0, Indices{k, l, a, b}, &(*C), 1.0, Indices{l, k, b, a}, *tmp);
 
     timer::pop(); // Forming
 }
@@ -567,137 +565,129 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     using namespace einsums;
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
-    auto nvir = nobs - nocc;
 
-    printf("\nForming the B Tensor");
     timer::push("Forming the B Tensor");
-    timer::push("Allocations");
-    auto B_term_2 = std::make_unique<Tensor<double, 4>>("B Term 2", nocc, nocc, nocc, nocc);
-    auto B_term_3 = std::make_unique<Tensor<double, 4>>("B Term 3", nocc, nocc, nocc, nocc);
-    auto B_term_4 = std::make_unique<Tensor<double, 4>>("B Term 4", nocc, nocc, nocc, nocc);
-    auto B_term_5 = std::make_unique<Tensor<double, 4>>("B Term 5", nocc, nocc, nocc, nocc);
-    auto B_term_6 = std::make_unique<Tensor<double, 4>>("B Term 6", nocc, nocc, nocc, nocc);
-    auto B_term_7 = std::make_unique<Tensor<double, 4>>("B Term 7", nocc, nocc, nocc, nocc);
-    auto B_term_8 = std::make_unique<Tensor<double, 4>>("B Term 8", nocc, nocc, nocc, nocc);
-    timer::pop();
+    auto nvir = nobs - nocc;
+    auto B_nosymm = std::make_unique<Tensor<double, 4>>("B_klmn", nocc, nocc, nocc, nocc);
 
     timer::push("Term 1");
-    (*B) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
+    (*B_nosymm) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
     timer::pop();
 
     timer::push("Term 2");
-    TensorView<double, 4> F2_ooo1{(*F2), Dim<4>{nocc, nocc, nocc, nri}, Offset<4>{0,0,0,0}};
-    TensorView<double, 2> fk_o1{(*fk), Dim<2>{nocc, nri}, Offset<2>{0,0}};
     auto tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nocc);
+    {
+        Tensor F2_ooo1 = (*F2)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, All);
+        Tensor fk_o1   = (*fk)(Range{0, nocc}, All);
 
-    einsum(Indices{l, k, n, m}, &tmp_1, Indices{l, k, n, I}, F2_ooo1, Indices{m, I}, fk_o1);
-    sort(Indices{k, l, m, n}, &B_term_2, Indices{l, k, n, m}, tmp_1);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                        -> double { return val1 + val2; }, &(*B_term_2), *tmp_1);
-    tmp_1.reset();        
+        einsum(Indices{l, k, n, m}, &tmp_1, Indices{l, k, n, I}, F2_ooo1, Indices{m, I}, fk_o1);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{k, l, m, n}, *tmp_1);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{l, k, n, m}, *tmp_1);
+    }
+    tmp_1.reset();
     timer::pop();
 
     timer::push("Term 3");
-    TensorView<double, 4> F_oo11_temp{(*F), Dim<4>{nocc, nocc, nri, nri}, Offset<4>{0,0,0,0}};
-    Tensor F_oo11 = F_oo11_temp;
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nri, nri);
     auto tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    {
+        Tensor F_oo11 = (*F)(Range{0, nocc}, Range{0, nocc}, All, All);
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nri, nri);
 
-    einsum(Indices{l, k, P, A}, &tmp_1, Indices{l, k, P, C}, F_oo11, Indices{C, A}, *kk);
-    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, P, A}, tmp_1, Indices{n, m, P, A}, F_oo11);
-    sort(Indices{k, l, m, n}, &B_term_3, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                        -> double { return val1 + val2; }, &(*B_term_3), *tmp_2);
+        einsum(Indices{l, k, P, A}, &tmp_1, Indices{l, k, P, C}, F_oo11, Indices{C, A}, *kk);
+        einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, P, A}, tmp_1, Indices{n, m, P, A}, F_oo11);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Term 4");
-    TensorView<double, 4> F_ooo1{(*F), Dim<4>{nocc, nocc, nocc, nri}, Offset<4>{0,0,0,0}};
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nri);
-    tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    {
+        Tensor F_ooo1 = (*F)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, All);
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nri);
+        tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, j, A}, &tmp_1, Indices{l, k, j, C}, F_ooo1, Indices{C, A}, *f);
-    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, j, A}, tmp_1, Indices{n, m, j, A}, F_ooo1);
-    sort(Indices{k, l, m, n}, &B_term_4, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return val1 + val2; }, &(*B_term_4), *tmp_2);
+        einsum(Indices{l, k, j, A}, &tmp_1, Indices{l, k, j, C}, F_ooo1, Indices{C, A}, *f);
+        einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, j, A}, tmp_1, Indices{n, m, j, A}, F_ooo1);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Term 5");
-    TensorView<double, 4> F_ooco{(*F), Dim<4>{nocc, nocc, ncabs, nocc}, Offset<4>{0,0,nobs,0}};
-    TensorView<double, 2> f_oo{(*f), Dim<2>{nocc, nocc}, Offset<2>{0,0}};
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, ncabs, nocc);
-    tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    TensorView<double, 4> F_ooco_temp{(*F), Dim<4>{nocc, nocc, ncabs, nocc}, Offset<4>{0,0,nobs,0}};
+    {
+        Tensor F_ooco = F_ooco_temp;
+        Tensor f_oo   = (*f)(Range{0, nocc}, Range{0, nocc});
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, ncabs, nocc);
+        tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, p, i}, &tmp_1, Indices{l, k, p, j}, F_ooco, Indices{j, i}, f_oo);
-    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, p, i}, tmp_1, Indices{n, m, p, i}, F_ooco);
-    sort(Indices{k, l, m, n}, &B_term_5, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return val1 + val2; }, &(*B_term_5), *tmp_2);
+        einsum(Indices{l, k, p, i}, &tmp_1, Indices{l, k, p, j}, F_ooco, Indices{j, i}, f_oo);
+        einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, p, i}, tmp_1, Indices{n, m, p, i}, F_ooco);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Term 6");
-    TensorView<double, 4> F_oovq{(*F), Dim<4>{nocc, nocc, nvir, nobs}, Offset<4>{0,0,nocc,0}};
-    TensorView<double, 2> f_pq{(*f), Dim<2>{nobs, nobs}, Offset<2>{0,0}};
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, nobs);
-    tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    TensorView<double, 4> F_oovq_temp{(*F), Dim<4>{nocc, nocc, nvir, nobs}, Offset<4>{0,0,nocc,0}};
+    {
+        Tensor F_oovq = F_oovq_temp;
+        Tensor f_pq = (*f)(Range{0, nobs}, Range{0, nobs});
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, nobs);
+        tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, b, p}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, p}, f_pq);
-    einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, b, p}, tmp_1, Indices{n, m, b, p}, F_oovq);
-    sort(Indices{k, l, m, n}, &B_term_6, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return val1 + val2; }, &(*B_term_6), *tmp_2);
+        einsum(Indices{l, k, b, p}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, p}, f_pq);
+        einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, b, p}, tmp_1, Indices{n, m, b, p}, F_oovq);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Term 7");
-    TensorView<double, 4> F_ooc1{(*F), Dim<4>{nocc, nocc, ncabs, nri}, Offset<4>{0,0,nobs,0}};
-    TensorView<double, 2> f_o1{(*f), Dim<2>{nocc, nri}, Offset<2>{0,0}};
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, ncabs, nocc);
-    tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    {
+        Tensor F_ooco = F_ooco_temp;
+        Tensor F_ooc1 = (*F)(Range{0, nocc}, Range{0, nocc}, Range{nobs, nri}, All);
+        Tensor f_o1   = (*f)(Range{0, nocc}, All);
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, ncabs, nocc);
+        tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, p, j}, &tmp_1, Indices{l, k, p, I}, F_ooc1, Indices{j, I}, f_o1);
-    einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, p, j}, tmp_1, Indices{n, m, p, j}, F_ooco);
-    sort(Indices{k, l, m, n}, &B_term_7, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return val1 + val2; }, &(*B_term_7), *tmp_2);
+        einsum(Indices{l, k, p, j}, &tmp_1, Indices{l, k, p, I}, F_ooc1, Indices{j, I}, f_o1);
+        einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, p, j}, tmp_1, Indices{n, m, p, j}, F_ooco);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Term 8");
-    TensorView<double, 4> F_oovc{(*F), Dim<4>{nocc, nocc, nvir, ncabs}, Offset<4>{0,0,nocc,nobs}};
-    TensorView<double, 2> f_pc{(*f), Dim<2>{nobs, ncabs}, Offset<2>{0,nobs}};
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, ncabs);
-    tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
+    {
+        Tensor F_oovq = F_oovq_temp;
+        Tensor F_oovc = (*F)(Range{0, nocc}, Range{0, nocc}, Range{nocc, nobs}, Range{nobs, nri});
+        Tensor f_pc   = (*f)(Range{0, nobs}, Range{nobs, nri});
+        tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, ncabs);
+        tmp_2 = std::make_unique<Tensor<double, 4>>("Temp 2", nocc, nocc, nocc, nocc);
 
-    einsum(Indices{l, k, b, q}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, q}, f_pc);
-    einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, b, q}, tmp_1, Indices{n, m, b, q}, F_oovc);
-    sort(Indices{k, l, m, n}, &B_term_8, Indices{l, k, n, m}, tmp_2);
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return val1 + val2; }, &(*B_term_8), *tmp_2);
+        einsum(Indices{l, k, b, q}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, q}, f_pc);
+        einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, b, q}, tmp_1, Indices{n, m, b, q}, F_oovc);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+    }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Building the B Matrix");
-    tmp_1 = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nocc, nocc);
-    tensor_algebra::element([](double const &val1, double const &val2, double const &val3,
-                               double const &val4, double const &val5, double const &val6,
-                               double const &val7, double const &val8) 
-                            -> double { return val1 + val2 - val3 - val4 + val5 - val6
-                                        - val7 - val8; }, 
-                            &(*B), *B_term_2, *B_term_3, *B_term_4, *B_term_5,
-                            *B_term_6, *B_term_7, *B_term_8);
-    sort(Indices{m, n, k, l}, &tmp_1, Indices{k, l, m, n}, (*B));
-    tensor_algebra::element([](double const &val1, double const &val2)
-                    -> double { return 0.5 * (val1 + val2); }, &(*B), *tmp_1);
+    (*B) = (*B_nosymm)(All, All, All, All);
+    sort(0.5, Indices{m, n, k, l}, &(*B), 0.5, Indices{k, l, m, n}, *B_nosymm);
     timer::pop();
     timer::pop(); // Forming
 }
@@ -711,13 +701,13 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
 
     timer::push("Forming the D Tensor");
     timer::push("Buliding D Tensor");
-#pragma omp parallel for
+#pragma omp parallel for collapse(4)
     for (int i = 0; i < nocc; i++) {
         for (int j = 0; j < nocc; j++) {
             for (int a = nocc; a < nobs; a++) {
                 for (int b = nocc; b < nobs; b++) {
                     auto denom = (*f)(a,a) + (*f)(b,b) - (*f)(i,i) - (*f)(j,j);
-                    (*D)(i,j,a-nocc,b-nocc) = (1 / denom);
+                    (*D)(i, j, a-nocc, b-nocc) = (1 / denom);
                 }
             }
         }
