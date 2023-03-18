@@ -700,7 +700,6 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
     printf("\nForming the D Tensor\n");
 
     timer::push("Forming the D Tensor");
-    timer::push("Buliding D Tensor");
 #pragma omp parallel for collapse(4)
     for (int i = 0; i < nocc; i++) {
         for (int j = 0; j < nocc; j++) {
@@ -712,7 +711,6 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
             }
         }
     }
-    timer::pop();
     timer::pop(); // Forming
 }
 
@@ -743,17 +741,13 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
     int kd;
 
     timer::push("Forming the V_Tilde Matrices");
-    timer::push("Allocations");
     auto V_ij = std::make_unique<Tensor<double, 2>>("V(i, j, :, :)", nocc, nocc);
     auto KD = std::make_unique<Tensor<double, 2>>("Temp 1", nvir, nvir);
     (*V_ij) = V_;
-    timer::pop(); 
 
-    timer::push("Perform einsums");
     einsum(Indices{a, b}, &KD, Indices{a, b}, K_ij, Indices{a, b}, D_ij);
     einsum(1.0, Indices{k, l}, &V_ij, -1.0, Indices{k, l, a, b}, *C, Indices{a, b}, KD);
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
-    timer::pop();
 
     timer::push("V Singlet Vector");
     V_s += 0.5 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd * ((*V_ij)(i,j) + (*V_ij)(j,i));
@@ -782,30 +776,26 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     int kd;
 
     timer::push("Forming the B_Tilde Matrices");
-    timer::push("Allocations");
     auto B_ij = std::make_unique<Tensor<double, 4>>("B = B - X * (fii +fjj)", nocc, nocc, nocc, nocc);
     auto CD = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, nvir);
     (*B_ij) = (*B_);
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
-    timer::pop(); 
 
-    timer::push("Perform einsums");
     einsum(Indices{k, l, a, b}, &CD, Indices{k, l, a, b}, *C, Indices{a, b}, D_ij);
     einsum(1.0, Indices{k, l, m, n}, &B_ij, -1.0, Indices{m, n, a, b}, *C,
                                                   Indices{k, l, a, b}, CD);
-    timer::pop();
 
     timer::push("B Singlet Matrix");
     B_s += 0.125 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd 
-               * ((*B_ij)(i,j,i,j) + (*B_ij)(j,i,i,j))
-               * (t_(i,j,i,j) + t_(i,j,j,i)) * kd;
+                 * ((*B_ij)(i,j,i,j) + (*B_ij)(j,i,i,j))
+                 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd;
     timer::pop();
 
     if ( i != j ) {
         timer::push("B Triplet Matrix");
         B_t += 0.125 * (t_(i,j,i,j) - t_(i,j,j,i)) * kd
-                   * ((*B_ij)(i,j,i,j) - (*B_ij)(j,i,i,j))
-                   * (t_(i,j,i,j) - t_(i,j,j,i)) * kd;
+                     * ((*B_ij)(i,j,i,j) - (*B_ij)(j,i,i,j))
+                     * (t_(i,j,i,j) - t_(i,j,j,i)) * kd;
         timer::pop();
     }
     timer::pop(); // Forming
