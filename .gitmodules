@@ -2,3 +2,4 @@
 	path = external/EinsumsInCpp
 	url = https://github.com/jturney/EinsumsInCpp
 	branch = main
+	ignore = dirty
