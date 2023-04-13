@@ -85,7 +85,7 @@ void print_r2_tensor(einsums::Tensor<double, 2> *M)
     int cols = (*M).dim(1);
     auto M_psi4 = std::make_shared<Matrix>((*M).name(), rows, cols);
 
-#pragma omp for collapse(2)
+    #pragma omp for collapse(2)
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             M_psi4->set(i, j, (*M)(i,j));
@@ -103,7 +103,7 @@ void print_r2_tensor(einsums::TensorView<double, 2> M)
     int cols = M.dim(1);
     auto M_psi4 = std::make_shared<Matrix>(M.name(), rows, cols);
 
-#pragma omp for collapse(2)
+    #pragma omp for collapse(2)
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             M_psi4->set(i, j, M(i,j));
@@ -123,7 +123,7 @@ void print_r4_tensor(einsums::Tensor<double, 4> *M)
     int c2 = (*M).dim(3);
     auto M_psi4 = std::make_shared<Matrix>((*M).name(), r1 * r2, c1 * c2);
 
-#pragma omp for collapse(4)
+    #pragma omp for collapse(4)
     for (int p = 0; p < r1; p++) {
         for (int q = 0; q < r2; q++) {
             for (int r = 0; r < c1; r++) {
@@ -198,7 +198,6 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
 
     timer::push("T and V Matrices");
     int n1, n2, P, Q;
-#pragma omp parallel for
     for (int i = 0; i < 3; i++) {
         ( o_oei[i] == 1 ) ? (n1 = nri - nobs, P = nobs) : (n1 = nobs, P = 0);
         ( o_oei[i+3] == 1 ) ? (n2 = nri - nobs, Q = nobs) : (n2 = nobs, Q = 0); 
@@ -299,17 +298,22 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
             }
 
             const double *buffer = ints->buffer();
-#pragma omp parallel for collapse(4)
             for (int M = 0; M < bs1->nshell(); M++) {
                 for (int N = 0; N < bs3->nshell(); N++) {
                     for (int P = 0; P < bs2->nshell(); P++) {
                         for (int Q = 0; Q < bs4->nshell(); Q++) {
                             ints->compute_shell(M, N, P, Q);
+                            int mM = bs1->shell(M).nfunction();
+                            int nN = bs3->shell(N).nfunction();
+                            int pP = bs2->shell(P).nfunction();
+                            int qQ = bs4->shell(Q).nfunction();
 
-                            for (int m = 0, index = 0; m < bs1->shell(M).nfunction(); m++) {
-                                for (int n = 0; n < bs3->shell(N).nfunction(); n++) {
-                                    for (int p = 0; p < bs2->shell(P).nfunction(); p++) {
-                                        for (int q = 0; q < bs4->shell(Q).nfunction(); q++, index++) {
+                            #pragma omp parallel for collapse(4) num_threads(4)
+                            for (int m = 0; m < mM; m++) {
+                                for (int n = 0; n < nN; n++) {
+                                    for (int p = 0; p < pP; p++) {
+                                        for (int q = 0; q < qQ; q++) {
+                                            int index = q + qQ * (p + pP * (n + nN * m));
                                             (*GAO)(bs1->shell(M).function_index() + m,
                                                    bs2->shell(P).function_index() + p,
                                                    bs3->shell(N).function_index() + n, 
@@ -337,28 +341,28 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
         auto C3 = std::make_unique<Tensor<double, 2>>("C3", nbf3, nmo3);
         auto C4 = std::make_unique<Tensor<double, 2>>("C4", nbf4, nmo4);
         {
-#pragma omp parallel for collapse(2)
+            #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < nbf1; p++) {
                 for (int q = 0; q < nmo1; q++) {
                     (*C1)(p,q) = bs[o_tei[i]].C()->get(p,q);	
                 }
             }
 
-#pragma omp parallel for collapse(2)
+            #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < nbf2; p++) {
                 for (int q = 0; q < nmo2; q++) {
                     (*C2)(p,q) = bs[o_tei[i+1]].C()->get(p,q);	
                 }
             }
 
-#pragma omp parallel for collapse(2)
+            #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < nbf3; p++) {
                 for (int q = 0; q < nmo3; q++) {
                     (*C3)(p,q) = bs[o_tei[i+2]].C()->get(p,q);	
                 }
             }
 
-#pragma omp parallel for collapse(2)
+            #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < nbf4; p++) {
                 for (int q = 0; q < nmo4; q++) {
                     (*C4)(p,q) = bs[o_tei[i+3]].C()->get(p,q);	
@@ -418,7 +422,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
 
             timer::push("Put into ERI Tensor");
             TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{I, J, K, L}};
-#pragma omp parallel for collapse(4)
+            #pragma omp parallel for collapse(4) num_threads(4)
             for (int i = 0; i < nmo1; i++){
                 for (int j = 0; j < nmo2; j++){
                     for (int k = 0; k < nmo3; k++){
@@ -435,7 +439,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
                 sort(Indices{Q, P, S, R}, &QPSR, Indices{R, S, P, Q}, RSPQ);
                 timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
-#pragma omp parallel for collapse(4)
+                #pragma omp parallel for collapse(4) num_threads(4)
                 for (int j = 0; j < nmo2; j++){
                     for (int i = 0; i < nmo1; i++){
                         for (int l = 0; l < nmo4; l++){
@@ -454,7 +458,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
                 sort(Indices{S, R, Q, P}, &SRQP, Indices{P, Q, R, S}, PQRS);
                 timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
-#pragma omp parallel for collapse(4)
+                #pragma omp parallel for collapse(4) num_threads(4)
                 for (int l = 0; l < nmo4; l++){
                     for (int k = 0; k < nmo3; k++){
                         for (int j = 0; j < nmo2; j++){
@@ -698,10 +702,8 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
     using namespace einsums;
     using namespace tensor_algebra;
 
-    printf("\nForming the D Tensor\n");
-
     timer::push("Forming the D Tensor");
-#pragma omp parallel for collapse(4)
+    #pragma omp parallel for collapse(4) num_threads(4)
     for (int i = 0; i < nocc; i++) {
         for (int j = 0; j < nocc; j++) {
             for (int a = nocc; a < nobs; a++) {
@@ -834,7 +836,7 @@ double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
     }
 
     double singles = 0;
-#pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2) num_threads(4)
     for (int A = 0; A < all_vir; A++) {
         for (int i = 0; i < nocc; i++) {
             singles += 2 * pow((*f_iA)(i, A), 2) / ((*e_ij)(i) - (*e_AB)(A));
@@ -854,16 +856,21 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     auto FRZN = options.get_str("FREEZE_CORE");
     bool SINGLES = options.get_bool("CABS_SINGLES");
 
+    using namespace einsums;
+    timer::initialize();
+
     outfile->Printf("   --------------------------------------------\n");
     outfile->Printf("                  MP2-F12/3C(FIX)              \n");
     outfile->Printf("   --------------------------------------------\n\n");
 
     // Get the AO basis sets, OBS and CABS //
+    timer::push("Basis Sets");
     outfile->Printf("  ==> Forming the OBS and CABS <==\n");
     OrbitalSpace OBS = ref_wfn->alpha_orbital_space("p","SO","ALL");
     OrbitalSpace RI = OrbitalSpace::build_ri_space(ref_wfn->get_basisset("CABS"), 1.0e-8);
     OrbitalSpace CABS = OrbitalSpace::build_cabs_space(OBS, RI, 1.0e-6);
     std::vector<OrbitalSpace> bs = {OBS, CABS};
+
     auto nobs = OBS.dim().max();
     auto nri = CABS.dim().max() + OBS.dim().max();
     auto nocc = ref_wfn->doccpi()[0];
@@ -881,10 +888,10 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
         dfrzn.print();
         nfrzn = dfrzn.max();
     }
+    timer::pop(); // Basis Sets
 
     // Form the one-electron integrals //
     outfile->Printf("\n  ==> Forming the Integrals <==\n");
-    using namespace einsums; 
 
     if (READ_INTS) {
         // Disable HDF5 diagnostic reporting.
@@ -898,7 +905,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
         state::data = h5::create("Data.h5", H5F_ACC_TRUNC);
     }
 
-    timer::initialize();
     timer::push("Form all the INTS");
     
     timer::push("OEINTS");
@@ -1069,17 +1075,19 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     double singles = 0.0;
     if (SINGLES == true) {
         singles = cabs_singles(f.get(), nocc, nri);
-        E_f12 += singles;
     }
 
     auto e_mp2 = ref_wfn->energy();
     outfile->Printf("  \n");
-    outfile->Printf(" Total MP2-F12/3C Energy:             %16.12f \n", e_mp2 + E_f12);
+    outfile->Printf(" Total MP2-F12/3C Energy:             %16.12f \n", e_mp2 + E_f12 + singles);
     outfile->Printf("    MP2 Energy:                       %16.12f \n", e_mp2);
     outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
     outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
     outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
-    outfile->Printf("    CABS Singles Correction:          %16.12f \n", singles);
+
+    if (SINGLES == true) {
+        outfile->Printf("    CABS Singles Correction:          %16.12f \n", singles);
+    }
     timer::pop(); // MP2F12/3C Energy
 
     timer::report();

@@ -48,7 +48,6 @@ def run_MP2F12(name, **kwargs):
 
     # Compute a SCF reference, a wavefunction is return which holds the molecule used, orbitals
     # Fock matrices, and more
-    print('Attention! This SCF may be density-fitted.')
     ref_wfn = kwargs.get('ref_wfn', None)
     if ref_wfn is None:
         #ref_wfn = psi4.driver.scf_helper(name, **kwargs)
