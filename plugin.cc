@@ -222,6 +222,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
         timer::push("Place MOs in T or V");
         {
             TensorView<double, 2> h_pq{*h, Dim<2>{n1, n2}, Offset<2>{P, Q}};
+	    #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < n1; p++) {
                 for (int q = 0; q < n2; q++) {
                     h_pq(p,q) = t_mo->get(p,q) + v_mo->get(p,q);
@@ -229,6 +230,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
             }
             if ( o_oei[i] != o_oei[i+3] ) {
                 TensorView<double, 2> h_qp{*h, Dim<2>{n2, n1}, Offset<2>{Q, P}};
+		#pragma omp parallel for collapse(2) num_threads(4)
                 for (int q = 0; q < n2; q++) {
                     for (int p = 0; p < n1; p++) {
                         h_qp(q,p) = t_mo->get(p,q) + v_mo->get(p,q);
