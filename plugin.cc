@@ -836,7 +836,7 @@ double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
     }
 
     double singles = 0;
-    #pragma omp parallel for collapse(2) num_threads(4)
+    #pragma omp parallel for collapse(2) num_threads(4) reduction(+:singles)
     for (int A = 0; A < all_vir; A++) {
         for (int i = 0; i < nocc; i++) {
             singles += 2 * pow((*f_iA)(i, A), 2) / ((*e_ij)(i) - (*e_AB)(A));
