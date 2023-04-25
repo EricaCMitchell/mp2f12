@@ -222,7 +222,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
         timer::push("Place MOs in T or V");
         {
             TensorView<double, 2> h_pq{*h, Dim<2>{n1, n2}, Offset<2>{P, Q}};
-	    #pragma omp parallel for collapse(2) num_threads(4)
+	        #pragma omp parallel for collapse(2) num_threads(4)
             for (int p = 0; p < n1; p++) {
                 for (int q = 0; q < n2; q++) {
                     h_pq(p,q) = t_mo->get(p,q) + v_mo->get(p,q);
@@ -230,7 +230,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
             }
             if ( o_oei[i] != o_oei[i+3] ) {
                 TensorView<double, 2> h_qp{*h, Dim<2>{n2, n1}, Offset<2>{Q, P}};
-		#pragma omp parallel for collapse(2) num_threads(4)
+		        #pragma omp parallel for collapse(2) num_threads(4)
                 for (int q = 0; q < n2; q++) {
                     for (int p = 0; p < n1; p++) {
                         h_qp(q,p) = t_mo->get(p,q) + v_mo->get(p,q);
@@ -437,7 +437,7 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
             timer::pop();
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
-                auto QPSR = std::make_unique<Tensor<double, 4>>("QPSR", nmo2, nmo1, nmo4, nmo3);
+                Tensor<double, 4> QPSR{"QPSR", nmo2, nmo1, nmo4, nmo3};
                 sort(Indices{Q, P, S, R}, &QPSR, Indices{R, S, P, Q}, RSPQ);
                 timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
@@ -446,17 +446,16 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
                     for (int i = 0; i < nmo1; i++){
                         for (int l = 0; l < nmo4; l++){
                             for (int k = 0; k < nmo3; k++){
-                                ERI_QPSR(j,i,l,k) = (*QPSR)(j,i,l,k);
+                                ERI_QPSR(j,i,l,k) = QPSR(j,i,l,k);
                             }
                         }
                     }
                 }
-                QPSR.reset(nullptr);
                 timer::pop();
             } // end of if statement
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "G") {
-                auto SRQP = std::make_unique<Tensor<double, 4>>("SRQP", nmo4, nmo3, nmo2, nmo1);
+                Tensor<double, 4> SRQP{"SRQP", nmo4, nmo3, nmo2, nmo1};
                 sort(Indices{S, R, Q, P}, &SRQP, Indices{P, Q, R, S}, PQRS);
                 timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
@@ -465,12 +464,11 @@ void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<O
                     for (int k = 0; k < nmo3; k++){
                         for (int j = 0; j < nmo2; j++){
                             for (int i = 0; i < nmo1; i++){
-                                ERI_SRQP(l,k,j,i) = (*SRQP)(l,k,j,i);
+                                ERI_SRQP(l,k,j,i) = SRQP(l,k,j,i);
                             }
                         }
                     }
                 }
-                SRQP.reset(nullptr);
                 timer::pop();
             } // end of if statement
         }
@@ -556,11 +554,11 @@ void C_mat(einsums::Tensor<double, 4> *C, einsums::Tensor<double, 4> *F, einsums
     auto nvir = nobs - nocc;
     Tensor F_oovc = (*F)(Range{0, nocc}, Range{0, nocc}, Range{nocc, nobs}, Range{nobs, nri});
     Tensor f_vc = (*f)(Range{nocc, nobs}, Range{nobs, nri});
-    auto tmp = std::make_unique<Tensor<double, 4>>("Temp", nocc, nocc, nvir, nvir);
+    Tensor<double, 4> tmp{"Temp", nocc, nocc, nvir, nvir};
 
     einsum(Indices{k, l, a, b}, &tmp, Indices{k, l, a, q}, F_oovc, Indices{b, q}, f_vc);
     sort(Indices{k, l, a, b}, &(*C), Indices{k, l, a, b}, tmp);
-    sort(1.0, Indices{k, l, a, b}, &(*C), 1.0, Indices{l, k, b, a}, *tmp);
+    sort(1.0, Indices{k, l, a, b}, &(*C), 1.0, Indices{l, k, b, a}, tmp);
 
     timer::pop(); // Forming
 }
@@ -575,10 +573,10 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
     timer::push("Forming the B Tensor");
     auto nvir = nobs - nocc;
-    auto B_nosymm = std::make_unique<Tensor<double, 4>>("B_klmn", nocc, nocc, nocc, nocc);
+    Tensor<double, 4> B_nosymm{"B_klmn", nocc, nocc, nocc, nocc};
 
     timer::push("Term 1");
-    (*B_nosymm) = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
+    B_nosymm = (*Uf)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
     timer::pop();
 
     timer::push("Term 2");
@@ -588,8 +586,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
         Tensor fk_o1   = (*fk)(Range{0, nocc}, All);
 
         einsum(Indices{l, k, n, m}, &tmp_1, Indices{l, k, n, I}, F2_ooo1, Indices{m, I}, fk_o1);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{k, l, m, n}, *tmp_1);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{l, k, n, m}, *tmp_1);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, 1.0, Indices{k, l, m, n}, *tmp_1);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, 1.0, Indices{l, k, n, m}, *tmp_1);
     }
     tmp_1.reset();
     timer::pop();
@@ -602,8 +600,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, P, A}, &tmp_1, Indices{l, k, P, C}, F_oo11, Indices{C, A}, *kk);
         einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, P, A}, tmp_1, Indices{n, m, P, A}, F_oo11);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
@@ -617,8 +615,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, j, A}, &tmp_1, Indices{l, k, j, C}, F_ooo1, Indices{C, A}, *f);
         einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, j, A}, tmp_1, Indices{n, m, j, A}, F_ooo1);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
@@ -634,8 +632,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, p, i}, &tmp_1, Indices{l, k, p, j}, F_ooco, Indices{j, i}, f_oo);
         einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, p, i}, tmp_1, Indices{n, m, p, i}, F_ooco);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), 1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, 1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, 1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
@@ -651,8 +649,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, b, p}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, p}, f_pq);
         einsum(Indices{l, k, n, m}, &tmp_2, Indices{l, k, b, p}, tmp_1, Indices{n, m, b, p}, F_oovq);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
@@ -668,8 +666,8 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, p, j}, &tmp_1, Indices{l, k, p, I}, F_ooc1, Indices{j, I}, f_o1);
         einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, p, j}, tmp_1, Indices{n, m, p, j}, F_ooco);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
@@ -685,16 +683,16 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
 
         einsum(Indices{l, k, b, q}, &tmp_1, Indices{l, k, b, r}, F_oovq, Indices{r, q}, f_pc);
         einsum(0.0, Indices{l, k, n, m}, &tmp_2, 2.0, Indices{l, k, b, q}, tmp_1, Indices{n, m, b, q}, F_oovc);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{k, l, m, n}, *tmp_2);
-        sort(1.0, Indices{k, l, m, n}, &(*B_nosymm), -1.0, Indices{l, k, n, m}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{k, l, m, n}, *tmp_2);
+        sort(1.0, Indices{k, l, m, n}, &B_nosymm, -1.0, Indices{l, k, n, m}, *tmp_2);
     }
     tmp_1.reset();
     tmp_2.reset();
     timer::pop();
 
     timer::push("Building the B Matrix");
-    (*B) = (*B_nosymm)(All, All, All, All);
-    sort(0.5, Indices{m, n, k, l}, &(*B), 0.5, Indices{k, l, m, n}, *B_nosymm);
+    (*B) = B_nosymm(All, All, All, All);
+    sort(0.5, Indices{m, n, k, l}, &(*B), 0.5, Indices{k, l, m, n}, B_nosymm);
     timer::pop();
     timer::pop(); // Forming
 }
@@ -767,7 +765,7 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
     return {V_s, V_t};
 }
 
-std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tensor<double, 4> *C, 
+std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> B, einsums::Tensor<double, 4> *C, 
                                   einsums::TensorView<double, 2> D_ij, 
                                   int i, int j, int nocc, int nobs)
 {
@@ -781,9 +779,9 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     int kd;
 
     timer::push("Forming the B_Tilde Matrices");
-    auto B_ij = std::make_unique<Tensor<double, 4>>("B = B - X * (fii +fjj)", nocc, nocc, nocc, nocc);
-    auto CD = std::make_unique<Tensor<double, 4>>("Temp 1", nocc, nocc, nvir, nvir);
-    (*B_ij) = (*B_);
+    Tensor<double, 4> B_ij{"B = B - X * (fii +fjj)", nocc, nocc, nocc, nocc};
+    Tensor<double, 4> CD{"Temp 1", nocc, nocc, nvir, nvir};
+    B_ij = B;
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
 
     einsum(Indices{k, l, a, b}, &CD, Indices{k, l, a, b}, *C, Indices{a, b}, D_ij);
@@ -792,14 +790,14 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
 
     timer::push("B Singlet Matrix");
     B_s += 0.125 * (t_(i,j,i,j) + t_(i,j,j,i)) * kd 
-                 * ((*B_ij)(i,j,i,j) + (*B_ij)(j,i,i,j))
+                 * (B_ij(i,j,i,j) + B_ij(j,i,i,j))
                  * (t_(i,j,i,j) + t_(i,j,j,i)) * kd;
     timer::pop();
 
     if ( i != j ) {
         timer::push("B Triplet Matrix");
         B_t += 0.125 * (t_(i,j,i,j) - t_(i,j,j,i)) * kd
-                     * ((*B_ij)(i,j,i,j) - (*B_ij)(j,i,i,j))
+                     * (B_ij(i,j,i,j) - B_ij(j,i,i,j))
                      * (t_(i,j,i,j) - t_(i,j,j,i)) * kd;
         timer::pop();
     }
@@ -807,7 +805,7 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> *B_, einsums::Tenso
     return {B_s, B_t};
 }
 
-double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri) 
+double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
 {
     using namespace einsums;
     using namespace linear_algebra;
@@ -816,32 +814,32 @@ double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
 
     timer::push("CABS Singles");
     // Diagonalize f_ij and f_AB
-    auto C_ij = std::make_unique<Tensor<double, 2>>("occupied e-vecs", nocc, nocc);
-    auto C_AB = std::make_unique<Tensor<double, 2>>("vir and CABS e-vecs", all_vir, all_vir);
+    Tensor<double, 2> C_ij{"occupied e-vecs", nocc, nocc};
+    Tensor<double, 2> C_AB{"vir and CABS e-vecs", all_vir, all_vir};
 
-    auto e_ij = std::make_unique<Tensor<double, 1>>("occupied e-vals", nocc);
-    auto e_AB = std::make_unique<Tensor<double, 1>>("vir and CABS e-vals", all_vir);
+    Tensor<double, 1> e_ij{"occupied e-vals", nocc};
+    Tensor<double, 1> e_AB{"vir and CABS e-vals", all_vir};
     {
-        *C_ij = (*f)(Range{0, nocc}, Range{0, nocc});
-        *C_AB = (*f)(Range{nocc, nri}, Range{nocc, nri});
+        C_ij = (*f)(Range{0, nocc}, Range{0, nocc});
+        C_AB = (*f)(Range{nocc, nri}, Range{nocc, nri});
 
-        syev(&(*C_ij), &(*e_ij));
-        syev(&(*C_AB), &(*e_AB));
+        syev(&C_ij, &e_ij);
+        syev(&C_AB, &e_AB);
     }
 
     // Form f_iA
-    auto f_iA = std::make_unique<Tensor<double, 2>>("Fock Occ-All_vir", nocc, all_vir);
+    Tensor<double, 2> f_iA{"Fock Occ-All_vir", nocc, all_vir};
     {
         Tensor f_view = (*f)(Range{0,nocc}, Range{nocc, nri});
-        
-        gemm<false, false>(1.0, *C_ij, gemm<false, true>(1.0, f_view, *C_AB), 0.0, &(*f_iA));
+
+        gemm<false, false>(1.0, C_ij, gemm<false, true>(1.0, f_view, C_AB), 0.0, &(f_iA));
     }
 
     double singles = 0;
     #pragma omp parallel for collapse(2) num_threads(4) reduction(+:singles)
     for (int A = 0; A < all_vir; A++) {
         for (int i = 0; i < nocc; i++) {
-            singles += 2 * pow((*f_iA)(i, A), 2) / ((*e_ij)(i) - (*e_AB)(A));
+            singles += 2 * pow(f_iA(i, A), 2) / (e_ij(i) - e_AB(A));
         }
     }
     timer::pop(); // CABS Singles
@@ -1035,18 +1033,20 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
                     "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
     outfile->Printf(" ----------------------------------------------------------------------\n");
+    #pragma omp parallel for ordered num_threads(4) reduction(+:E_f12_s,E_f12_t)
     for (int i = nfrzn; i < nocc; i++) {
+        #pragma omp ordered
         for (int j = i; j < nocc; j++) {
             // Allocations
-            auto X_ = std::make_unique<Tensor<double, 4>>("Scaled X", nocc, nocc, nocc, nocc);
-            auto B_ = std::make_unique<Tensor<double, 4>>("B ij", nocc, nocc, nocc, nocc);
-            (*X_) = (*X)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
-            (*B_) = (*B)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
+            Tensor<double, 4> X_{"Scaled X", nocc, nocc, nocc, nocc};
+            Tensor<double, 4> B_{"B ij", nocc, nocc, nocc, nocc};
+            X_ = (*X)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
+            B_ = (*B)(Range{0, nocc}, Range{0, nocc}, Range{0, nocc}, Range{0, nocc});
             // Building B_
             auto f_scale = (*f)(i,i) + (*f)(j,j);
-            linear_algebra::scale(f_scale, &(*X_));
+            linear_algebra::scale(f_scale, &X_);
             tensor_algebra::element([](double const &Bval, double const &Xval) 
-                                    -> double { return Bval - Xval; }, B_.get(), *X_);
+                                    -> double { return Bval - Xval; }, &B_, X_);
             // Getting V_Tilde and B_Tilde
             auto V_ = TensorView<double, 2>{(*V), Dim<2>{nocc, nocc}, Offset<4>{i, j, 0, 0}, 
                                             Stride<2>{(*V).stride(2), (*V).stride(3)}};
@@ -1055,7 +1055,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
             auto D_ = TensorView<double, 2>{(*D), Dim<2>{nobs-nocc, nobs-nocc}, Offset<4>{i, j, 0, 0},
                                             Stride<2>{(*D).stride(2), (*D).stride(3)}};
             auto VT = V_Tilde(V_, C.get(), K_, D_, i, j, nocc, nobs);
-            auto BT = B_Tilde(B_.get(), C.get(), D_, i, j, nocc, nobs);
+            auto BT = B_Tilde(B_, C.get(), D_, i, j, nocc, nobs);
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
             auto E_s = kd * (VT.first + BT.first);
@@ -1067,8 +1067,6 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
             }
             auto E_f = E_s + (3.0 * E_t);
             outfile->Printf("%3d %3d  |   %16.12f   %16.12f     %16.12f \n", i+1, j+1, E_s, E_t, E_f);
-            X_.reset();
-            B_.reset();
         }
     }
     E_f12_t = 3.0 * E_f12_t;
