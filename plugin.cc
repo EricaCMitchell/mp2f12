@@ -1,11 +1,11 @@
 /*
  * @BEGIN LICENSE
  *
- * MP2F12 by Psi4 Developer, a plugin to:
+ * MP2F12 by Erica Mitchell, a plugin to:
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2021 The Psi4 Developers.
+ * Copyright (c) 2007-2023 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -30,36 +30,27 @@
 
 #ifdef _OPENMP
 #include <omp.h>
+#include "psi4/libpsi4util/process.h"
 #endif
 
-#include "psi4/psi4-dec.h"
-#include "psi4/libqt/qt.h"
 #include "psi4/libpsi4util/PsiOutStream.h"
-#include "psi4/liboptions/liboptions.h"
-#include "psi4/libpsio/psio.h"
-#include "psi4/libpsio/psio.hpp"
-#include "psi4/libpsi4util/process.h"
 
 #include "psi4/libmints/basisset.h"
 #include "psi4/libmints/dimension.h"
-#include "psi4/libmints/eri.h"
-#include "psi4/libmints/integral.h"
 #include "psi4/libmints/integralparameters.h"
-#include "psi4/libmints/fjt.h"
 #include "psi4/libmints/matrix.h"
 #include "psi4/libmints/mintshelper.h"
 #include "psi4/libmints/orbitalspace.h"
-#include "psi4/libmints/twobody.h"
 #include "psi4/libmints/wavefunction.h"
 
 #include "einsums/TensorAlgebra.hpp"
 #include "einsums/LinearAlgebra.hpp"
-#include "einsums/State.hpp"
+#include "einsums/Sort.hpp"
 #include "einsums/Timer.hpp"
 #include "einsums/Tensor.hpp"
-#include "einsums/Utilities.hpp"
 #include "einsums/Print.hpp"
-#include "einsums/STL.hpp"
+
+#include "teints.h"
 
 namespace psi{ namespace MP2F12 {
 
@@ -68,10 +59,11 @@ int read_options(std::string name, Options& options)
 {
     if (name == "MP2F12"|| options.read_globals()) {
         /*- The amount of information printed to the output file -*/
-        options.add_int("PRINT", 0);
-        options.add_bool("WRITE_INTS", false);
-        options.add_bool("READ_INTS", false);
+        options.add_int("PRINT", 1);
+        /*- Whether to compute the CABS Singles Correction -*/
         options.add_bool("CABS_SINGLES", true);
+        /*- Choose conventional or density-fitted. Default to CONV -*/
+        options.add_str("F12_TYPE", "CONV");
     }
 
     return true;
@@ -93,24 +85,6 @@ void print_r2_tensor(einsums::Tensor<double, 2> *M)
     }
 
     M_psi4->print_to_mathematica();
-}
-
-void print_r2_tensor(einsums::TensorView<double, 2> M)
-{
-    using namespace einsums;
-
-    int rows = M.dim(0);
-    int cols = M.dim(1);
-    auto M_psi4 = std::make_shared<Matrix>(M.name(), rows, cols);
-
-    #pragma omp for collapse(2)
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            M_psi4->set(i, j, M(i,j));
-        }	
-    }
-
-    M_psi4->print_to_numpy();
 }
 
 void print_r4_tensor(einsums::Tensor<double, 4> *M)
@@ -137,62 +111,16 @@ void print_r4_tensor(einsums::Tensor<double, 4> *M)
     M_psi4->print_to_numpy();
 }
 
-void write_ints_disk(einsums::Tensor<double, 2> *ERI, int s1, int s2)
-{
-    using namespace einsums; 
-
-    println("Writing {} ...", (*ERI).name());
-    outfile->Printf("  Writing %20d ...\n", (*ERI).name());
-    state::data = h5::open("Data.h5", H5F_ACC_RDWR);
-    timer::push((*ERI).name() + " write");
-    DiskTensor<double, 2> ERI_(state::data, (*ERI).name(), s1, s2);
-    ERI_(All, All) = (*ERI);
-    timer::pop();
-}
-
-void write_ints_disk(einsums::Tensor<double, 4> *ERI, int s1, int s2, int s3, int s4)
-{
-    using namespace einsums; 
-
-    println("Writing {} ...", (*ERI).name());
-    outfile->Printf("  Writing %20d ...\n", (*ERI).name());
-    state::data = h5::open("Data.h5", H5F_ACC_RDWR);
-    timer::push((*ERI).name() + " write");
-    DiskTensor<double, 4> ERI_(state::data, (*ERI).name(), s1, s2, s3, s4);
-    ERI_(All, All, All, All) = (*ERI);
-    timer::pop();
-}
-
-void read_ints_disk(einsums::Tensor<double, 2> *ERI, int s1, int s2)
-{
-    using namespace einsums; 
-
-    println("Retrieving {}...", (*ERI).name());
-    outfile->Printf("  Retrieving %20d ...\n", (*ERI).name());
-    timer::push((*ERI).name() + " read");
-    DiskTensor<double, 2> ERI_(state::data, (*ERI).name(), s1, s2);
-    auto diskView_ERI = ERI_(All, All);
-    *ERI = diskView_ERI.get();
-    timer::pop();
-}
-
-void read_ints_disk(einsums::Tensor<double, 4> *ERI, int s1, int s2, int s3, int s4)
-{
-    using namespace einsums; 
-
-    println("Retrieving {}...", (*ERI).name());
-    outfile->Printf("  Retrieving %20d ...\n", (*ERI).name());
-    timer::push((*ERI).name() + " read");
-    DiskTensor<double, 4> ERI_(state::data, (*ERI).name(), s1, s2, s3, s4);
-    auto diskView_ERI = ERI_(All, All, All, All);
-    *ERI = diskView_ERI.get();
-    timer::pop();
-}
-
-void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h, 
-		    std::vector<OrbitalSpace>& bs, int nobs, int nri)
+void oeints(MintsHelper& mints, einsums::Tensor<double, 2> *h,
+		    std::vector<OrbitalSpace>& bs, const int& nobs, const int& nri)
 { 
     using namespace einsums;
+
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
+
     std::vector<int> o_oei = {0, 0, 1, 
                               0, 1, 1}; 
 
@@ -222,7 +150,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
         timer::push("Place MOs in T or V");
         {
             TensorView<double, 2> h_pq{*h, Dim<2>{n1, n2}, Offset<2>{P, Q}};
-	        #pragma omp parallel for collapse(2) num_threads(4)
+	        #pragma omp parallel for collapse(2) num_threads(nthreads)
             for (int p = 0; p < n1; p++) {
                 for (int q = 0; q < n2; q++) {
                     h_pq(p,q) = t_mo->get(p,q) + v_mo->get(p,q);
@@ -230,7 +158,7 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
             }
             if ( o_oei[i] != o_oei[i+3] ) {
                 TensorView<double, 2> h_qp{*h, Dim<2>{n2, n1}, Offset<2>{Q, P}};
-		        #pragma omp parallel for collapse(2) num_threads(4)
+		        #pragma omp parallel for collapse(2) num_threads(nthreads)
                 for (int q = 0; q < n2; q++) {
                     for (int p = 0; p < n1; p++) {
                         h_qp(q,p) = t_mo->get(p,q) + v_mo->get(p,q);
@@ -245,242 +173,9 @@ void oeints(MintsHelper mints, einsums::Tensor<double, 2> *h,
     timer::pop(); // T and V Matrices
 }
 
-void teints(std::string int_type, einsums::Tensor<double, 4> *ERI, std::vector<OrbitalSpace>& bs, 
-		    int nobs, std::shared_ptr<CorrelationFactor> corr)
-{
-    using namespace einsums; 
-    using namespace tensor_algebra;
-    using namespace tensor_algebra::index;
-
-    std::vector<int> o_tei = {0, 0, 0, 0};
-    if ( int_type == "F" ){
-        o_tei = {0, 0, 0, 0,
-                 0, 0, 0, 1,
-                 0, 0, 1, 1};
-    } else if ( int_type == "F2" ){
-        o_tei = {0, 0, 0, 0,
-                 0, 0, 0, 1};
-    } else if ( int_type == "G" ){ 
-        o_tei = {0, 0, 0, 0,
-                 0, 0, 0, 1,
-                 1, 0, 0, 1,
-                 1, 0, 1, 0}; 
-    }
-
-    int nmo1, nmo2, nmo3, nmo4;
-    int I, J, K, L;
-    for (int idx = 0; idx < (o_tei.size()/4); idx++) {
-        int i = idx * 4;
-        auto bs1 = bs[o_tei[i]].basisset();
-        auto bs2 = bs[o_tei[i+1]].basisset();
-        auto bs3 = bs[o_tei[i+2]].basisset();
-        auto bs4 = bs[o_tei[i+3]].basisset();
-        auto nbf1 = bs1->nbf();
-        auto nbf2 = bs2->nbf();
-        auto nbf3 = bs3->nbf();
-        auto nbf4 = bs4->nbf();
-
-        // Create ERI AO Tensor
-        timer::push("ERI Building");
-        auto GAO = std::make_unique<Tensor<double, 4>>("ERI AO", nbf1, nbf2, nbf3, nbf4);
-        {
-            IntegralFactory intf(bs1, bs3, bs2, bs4);
-
-            auto ints = std::shared_ptr<TwoBodyAOInt>(nullptr);
-            if ( int_type == "F" ){
-                ints = std::shared_ptr<TwoBodyAOInt>(intf.f12(corr));
-            } else if ( int_type == "FG" ){
-                ints = std::shared_ptr<TwoBodyAOInt>(intf.f12g12(corr));
-            } else if ( int_type == "F2" ){
-                ints = std::shared_ptr<TwoBodyAOInt>(intf.f12_squared(corr));
-            } else if ( int_type == "Uf" ){
-                ints = std::shared_ptr<TwoBodyAOInt>(intf.f12_double_commutator(corr));
-            } else { 
-                ints = std::shared_ptr<TwoBodyAOInt>(intf.eri());
-            }
-
-            const double *buffer = ints->buffer();
-            for (int M = 0; M < bs1->nshell(); M++) {
-                for (int N = 0; N < bs3->nshell(); N++) {
-                    for (int P = 0; P < bs2->nshell(); P++) {
-                        for (int Q = 0; Q < bs4->nshell(); Q++) {
-                            ints->compute_shell(M, N, P, Q);
-                            int mM = bs1->shell(M).nfunction();
-                            int nN = bs3->shell(N).nfunction();
-                            int pP = bs2->shell(P).nfunction();
-                            int qQ = bs4->shell(Q).nfunction();
-
-                            #pragma omp parallel for collapse(4) num_threads(4)
-                            for (int m = 0; m < mM; m++) {
-                                for (int n = 0; n < nN; n++) {
-                                    for (int p = 0; p < pP; p++) {
-                                        for (int q = 0; q < qQ; q++) {
-                                            int index = q + qQ * (p + pP * (n + nN * m));
-                                            (*GAO)(bs1->shell(M).function_index() + m,
-                                                   bs2->shell(P).function_index() + p,
-                                                   bs3->shell(N).function_index() + n, 
-                                                   bs4->shell(Q).function_index() + q) = buffer[index];
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        timer::pop(); // ERI Building
-	
-        // Convert all Psi4 C Matrices to einsums Tensor<double, 2>
-        timer::push("Convert C Matrices to Tensors");
-        (o_tei[i] == 1) ? nmo1 = nbf1 - nobs : nmo1 = nbf1;
-        (o_tei[i+1] == 1) ? nmo2 = nbf2 - nobs : nmo2 = nbf2;
-        (o_tei[i+2] == 1) ? nmo3 = nbf3 - nobs : nmo3 = nbf3;
-        (o_tei[i+3] == 1) ? nmo4 = nbf4 - nobs : nmo4 = nbf4;
-
-        auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
-        auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
-        auto C3 = std::make_unique<Tensor<double, 2>>("C3", nbf3, nmo3);
-        auto C4 = std::make_unique<Tensor<double, 2>>("C4", nbf4, nmo4);
-        {
-            #pragma omp parallel for collapse(2) num_threads(4)
-            for (int p = 0; p < nbf1; p++) {
-                for (int q = 0; q < nmo1; q++) {
-                    (*C1)(p,q) = bs[o_tei[i]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(4)
-            for (int p = 0; p < nbf2; p++) {
-                for (int q = 0; q < nmo2; q++) {
-                    (*C2)(p,q) = bs[o_tei[i+1]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(4)
-            for (int p = 0; p < nbf3; p++) {
-                for (int q = 0; q < nmo3; q++) {
-                    (*C3)(p,q) = bs[o_tei[i+2]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(4)
-            for (int p = 0; p < nbf4; p++) {
-                for (int q = 0; q < nmo4; q++) {
-                    (*C4)(p,q) = bs[o_tei[i+3]].C()->get(p,q);	
-                }
-            }
-        }
-        timer::pop(); // Convert C Matrices to Tensors
-	
-        // Transform ERI AO Tensor to ERI MO Tensor
-        timer::push("Full Transformation");
-        auto PQRS = std::make_unique<Tensor<double, 4>>("PQRS", nmo1, nmo2, nmo3, nmo4);
-        auto RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", 0, 0, 0, 0);
-        {
-            // C1
-            auto Pqrs = std::make_unique<Tensor<double, 4>>("Pqrs", nmo1, nbf2, nbf3, nbf4);
-            einsum(Indices{P, q, r, s}, &Pqrs, Indices{p, q, r, s}, GAO, Indices{p, P}, C1);
-            GAO.reset();
-            C1.reset();
-
-            // C3
-            auto rsPq = std::make_unique<Tensor<double, 4>>("rsPq", nbf3, nbf4, nmo1, nbf2);
-            sort(Indices{r, s, P, q}, &rsPq, Indices{P, q, r, s}, Pqrs);
-            Pqrs.reset();
-            auto RsPq = std::make_unique<Tensor<double, 4>>("RsPq", nmo3, nbf4, nmo1, nbf2);
-            einsum(Indices{R, s, P, q}, &RsPq, Indices{r, s, P, q}, rsPq, Indices{r, R}, C3);
-            rsPq.reset();
-            C3.reset();
-
-            // C2
-            auto RsPQ = std::make_unique<Tensor<double, 4>>("RsPQ", nmo3, nbf4, nmo1, nmo2);
-            einsum(Indices{R, s, P, Q}, &RsPQ, Indices{R, s, P, q}, RsPq, Indices{q, Q}, C2);
-            RsPq.reset();
-            C2.reset();
-
-            // C4
-            auto PQRs = std::make_unique<Tensor<double, 4>>("PQRs", nmo1, nmo2, nmo3, nbf4);
-            sort(Indices{P, Q, R, s}, &PQRs, Indices{R, s, P, Q}, RsPQ);
-            RsPQ.reset();
-            einsum(Indices{P, Q, R, S}, &PQRS, Indices{P, Q, R, s}, PQRs, Indices{s, S}, C4);
-            PQRs.reset();
-            C4.reset();
-
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
-                RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", nmo3, nmo4, nmo1, nmo2);
-                sort(Indices{R, S, P, Q}, &RSPQ, Indices{P, Q, R, S}, PQRS);
-            }
-        }
-        timer::pop(); // Full Transformation
-
-        // Stitch into ERI Tensor
-        timer::push("Stitch into ERI Tensor");
-        {
-            (o_tei[i] == 1) ? I = nobs : I = 0;
-            (o_tei[i+1] == 1) ? J = nobs : J = 0;
-            (o_tei[i+2] == 1) ? K = nobs : K = 0;
-            (o_tei[i+3] == 1) ? L = nobs : L = 0;
-
-            timer::push("Put into ERI Tensor");
-            TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{I, J, K, L}};
-            #pragma omp parallel for collapse(4) num_threads(4)
-            for (int i = 0; i < nmo1; i++){
-                for (int j = 0; j < nmo2; j++){
-                    for (int k = 0; k < nmo3; k++){
-                        for (int l = 0; l < nmo4; l++){
-                            ERI_PQRS(i,j,k,l) = (*PQRS)(i,j,k,l);
-                        }
-                    }
-                }
-            }	
-            timer::pop();
-
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
-                Tensor<double, 4> QPSR{"QPSR", nmo2, nmo1, nmo4, nmo3};
-                sort(Indices{Q, P, S, R}, &QPSR, Indices{R, S, P, Q}, RSPQ);
-                timer::push("Put into ERI Tensor");
-                TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
-                #pragma omp parallel for collapse(4) num_threads(4)
-                for (int j = 0; j < nmo2; j++){
-                    for (int i = 0; i < nmo1; i++){
-                        for (int l = 0; l < nmo4; l++){
-                            for (int k = 0; k < nmo3; k++){
-                                ERI_QPSR(j,i,l,k) = QPSR(j,i,l,k);
-                            }
-                        }
-                    }
-                }
-                timer::pop();
-            } // end of if statement
-
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "G") {
-                Tensor<double, 4> SRQP{"SRQP", nmo4, nmo3, nmo2, nmo1};
-                sort(Indices{S, R, Q, P}, &SRQP, Indices{P, Q, R, S}, PQRS);
-                timer::push("Put into ERI Tensor");
-                TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
-                #pragma omp parallel for collapse(4) num_threads(4)
-                for (int l = 0; l < nmo4; l++){
-                    for (int k = 0; k < nmo3; k++){
-                        for (int j = 0; j < nmo2; j++){
-                            for (int i = 0; i < nmo1; i++){
-                                ERI_SRQP(l,k,j,i) = SRQP(l,k,j,i);
-                            }
-                        }
-                    }
-                }
-                timer::pop();
-            } // end of if statement
-        }
-        RSPQ.reset(nullptr);
-        PQRS.reset(nullptr);
-        timer::pop(); // Stitch into ERI Tensor
-    } // end of for loop
-}
-
 void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
-            einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h, 
-            einsums::Tensor<double, 4> *G, int nocc, int nri ) 
+            einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
+            einsums::Tensor<double, 4> *G, const int& nocc, const int& nri ) 
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -492,8 +187,8 @@ void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
     (*f) = (*h)(All, All);
     {
         Tensor Id = create_identity_tensor("I", nocc, nocc);
-        TensorView<double, 4> G1_view{(*G), Dim<4>{nri, nocc, nri, nocc}, Offset<4>{0,0,0,0}};
-        TensorView<double, 4> G2_view{(*G), Dim<4>{nri, nocc, nocc, nri}, Offset<4>{0,0,0,0}};
+        TensorView<double, 4> G1_view{(*G), Dim<4>{nri, nocc, nri, nocc}};
+        TensorView<double, 4> G2_view{(*G), Dim<4>{nri, nocc, nocc, nri}};
         auto G1_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri, nri, nocc, nocc);
         auto G2_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri, nri, nocc, nocc);
 
@@ -516,7 +211,7 @@ void f_mats(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
 }
 
 void V_and_X_mat(einsums::Tensor<double, 4> *VX, einsums::Tensor<double, 4> *F, einsums::Tensor<double, 4> *G_F, 
-           einsums::Tensor<double, 4> *FG_F2, int nocc, int nobs, int nri)
+           einsums::Tensor<double, 4> *FG_F2, const int& nocc, const int& nobs, const int& nri)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -544,7 +239,7 @@ void V_and_X_mat(einsums::Tensor<double, 4> *VX, einsums::Tensor<double, 4> *F, 
 }
 
 void C_mat(einsums::Tensor<double, 4> *C, einsums::Tensor<double, 4> *F, einsums::Tensor<double, 2> *f,
-           int nocc, int nobs, int nri)
+           const int& nocc, const int& nobs, const int& nri)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -565,7 +260,7 @@ void C_mat(einsums::Tensor<double, 4> *C, einsums::Tensor<double, 4> *F, einsums
 
 void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsums::Tensor<double, 4> *F2,
            einsums::Tensor<double, 4> *F, einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *fk, 
-           einsums::Tensor<double, 2> *kk, int nocc, int nobs, int ncabs, int nri)
+           einsums::Tensor<double, 2> *kk, const int& nocc, const int& nobs, const int& ncabs, const int& nri)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -623,7 +318,7 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop();
 
     timer::push("Term 5");
-    TensorView<double, 4> F_ooco_temp{(*F), Dim<4>{nocc, nocc, ncabs, nocc}, Offset<4>{0,0,nobs,0}};
+    TensorView<double, 4> F_ooco_temp{(*F), Dim<4>{nocc, nocc, ncabs, nocc}, Offset<4>{0, 0, nobs, 0}};
     {
         Tensor F_ooco = F_ooco_temp;
         Tensor f_oo   = (*f)(Range{0, nocc}, Range{0, nocc});
@@ -640,7 +335,7 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop();
 
     timer::push("Term 6");
-    TensorView<double, 4> F_oovq_temp{(*F), Dim<4>{nocc, nocc, nvir, nobs}, Offset<4>{0,0,nocc,0}};
+    TensorView<double, 4> F_oovq_temp{(*F), Dim<4>{nocc, nocc, nvir, nobs}, Offset<4>{0, 0, nocc, 0}};
     {
         Tensor F_oovq = F_oovq_temp;
         Tensor f_pq = (*f)(Range{0, nobs}, Range{0, nobs});
@@ -697,13 +392,18 @@ void B_mat(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf, einsum
     timer::pop(); // Forming
 }
 
-void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int nocc, int nobs)
+void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, const int& nocc, const int& nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
 
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
+
     timer::push("Forming the D Tensor");
-    #pragma omp parallel for collapse(4) num_threads(4)
+    #pragma omp parallel for collapse(4) num_threads(nthreads)
     for (int i = 0; i < nocc; i++) {
         for (int j = 0; j < nocc; j++) {
             for (int a = nocc; a < nobs; a++) {
@@ -717,7 +417,7 @@ void D_mat(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f, int noc
     timer::pop(); // Forming
 }
 
-double t_(int p, int q, int r, int s) 
+double t_(const int& p, const int& q, const int& r, const int& s)
 {
     auto t_amp = 0.0;
     if (p == r && q == s && p != q) {
@@ -730,9 +430,9 @@ double t_(int p, int q, int r, int s)
     return t_amp;
 }
 
-std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Tensor<double, 4> *C, 
-                                  einsums::TensorView<double, 2> K_ij, einsums::TensorView<double, 2> D_ij,
-                                  int i, int j, int nocc, int nobs)
+std::pair<double, double> V_Tilde(einsums::TensorView<double, 2>& V_, einsums::Tensor<double, 4> *C,
+                                  einsums::TensorView<double, 2>& K_ij, einsums::TensorView<double, 2>& D_ij,
+                                  const int& i, const int& j, const int& nocc, const int& nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -765,9 +465,9 @@ std::pair<double, double> V_Tilde(einsums::TensorView<double, 2> V_, einsums::Te
     return {V_s, V_t};
 }
 
-std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> B, einsums::Tensor<double, 4> *C, 
-                                  einsums::TensorView<double, 2> D_ij, 
-                                  int i, int j, int nocc, int nobs)
+std::pair<double, double> B_Tilde(einsums::Tensor<double, 4>& B, einsums::Tensor<double, 4> *C, 
+                                  einsums::TensorView<double, 2>& D_ij, 
+                                  const int& i, const int& j, const int& nocc, const int& nobs)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -805,10 +505,15 @@ std::pair<double, double> B_Tilde(einsums::Tensor<double, 4> B, einsums::Tensor<
     return {B_s, B_t};
 }
 
-double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
+double cabs_singles(einsums::Tensor<double,2> *f, const int& nocc, const int& nri)
 {
     using namespace einsums;
     using namespace linear_algebra;
+
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
 
     int all_vir = nri - nocc;
 
@@ -836,7 +541,7 @@ double cabs_singles(einsums::Tensor<double,2> *f, int nocc, int nri)
     }
 
     double singles = 0;
-    #pragma omp parallel for collapse(2) num_threads(4) reduction(+:singles)
+    #pragma omp parallel for collapse(2) num_threads(nthreads) reduction(+:singles)
     for (int A = 0; A < all_vir; A++) {
         for (int i = 0; i < nocc; i++) {
             singles += 2 * pow(f_iA(i, A), 2) / (e_ij(i) - e_AB(A));
@@ -851,59 +556,81 @@ extern "C" PSI_API
 SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
 {
     int PRINT = options.get_int("PRINT");
-    bool WRITE_INTS = options.get_bool("WRITE_INTS");
-    bool READ_INTS = options.get_bool("READ_INTS");
     auto FRZN = options.get_str("FREEZE_CORE");
     bool SINGLES = options.get_bool("CABS_SINGLES");
+    auto F12_TYPE = options.get_str("F12_TYPE");
+
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
 
     using namespace einsums;
     timer::initialize();
 
-    outfile->Printf("   --------------------------------------------\n");
-    outfile->Printf("                  MP2-F12/3C(FIX)              \n");
-    outfile->Printf("   --------------------------------------------\n\n");
+        outfile->Printf(" -----------------------------------------------------------\n");
+    if (F12_TYPE == "DF") {
+        outfile->Printf("                      DF-MP2-F12/3C(FIX)                    \n");
+        outfile->Printf("       2nd Order Density-Fitted Explicitly Correlated       \n");
+        outfile->Printf("                    Moeller-Plesset Theory                  \n");
+        outfile->Printf("                RMP2 Wavefunction, %2d Threads              \n\n", nthreads);
+        outfile->Printf("               Erica Mitchell and Justin Turney             \n");
+    } else {
+        outfile->Printf("                       MP2-F12/3C(FIX)                      \n");
+        outfile->Printf("   2nd Order Explicitly Correlated Moeller-Plesset Theory   \n");
+        outfile->Printf("               RMP2 Wavefunction, %2d Threads               \n\n", nthreads);
+        outfile->Printf("              Erica Mitchell and Justin Turney              \n");
+    }
+        outfile->Printf(" -----------------------------------------------------------\n\n");
 
-    // Get the AO basis sets, OBS and CABS //
+    /* Get the AO basis sets, OBS and CABS */
     timer::push("Basis Sets");
-    outfile->Printf("  ==> Forming the OBS and CABS <==\n");
+    outfile->Printf(" ===> Forming the OBS and CABS <===\n\n");
+
+    outfile->Printf("  Orbital Basis Set (OBS)\n");
     OrbitalSpace OBS = ref_wfn->alpha_orbital_space("p","SO","ALL");
+    OBS.basisset()->print();
+
+    outfile->Printf("  Complimentary Auxiliary Basis Set (CABS)\n");
     OrbitalSpace RI = OrbitalSpace::build_ri_space(ref_wfn->get_basisset("CABS"), 1.0e-8);
     OrbitalSpace CABS = OrbitalSpace::build_cabs_space(OBS, RI, 1.0e-6);
+    CABS.basisset()->print();
     std::vector<OrbitalSpace> bs = {OBS, CABS};
+    
+    std::shared_ptr<BasisSet> DFBS;
+    if (F12_TYPE == "DF") {
+        outfile->Printf("  Auxiliary Basis Set\n");
+        DFBS = ref_wfn->get_basisset("DF_BASIS_MP2");
+        DFBS->print();
+    }
 
     auto nobs = OBS.dim().max();
     auto nri = CABS.dim().max() + OBS.dim().max();
     auto nocc = ref_wfn->doccpi()[0];
     auto ncabs = nri - nobs;
     auto nfrzn = 0;
+    auto naux = 0;
 
-    outfile->Printf("  F12 MO Spaces: \n");
-    outfile->Printf("     NOCC: %3d \n", nocc);
-    outfile->Printf("     NVIR: %3d \n", nobs-nocc);
-    outfile->Printf("     NOBS: %3d \n", nobs);
-    outfile->Printf("    NCABS: %3d \n", ncabs);
+    if (F12_TYPE == "DF") {
+        naux = DFBS->nbf();
+    }
+
+    outfile->Printf("  ----------------------------------------\n");
+    outfile->Printf("     %5s  %5s   %5s  %5s  %5s   \n", "NOCC", "NOBS", "NCABS", "NRI", "NAUX");
+    outfile->Printf("  ----------------------------------------\n");
+    outfile->Printf("     %5d  %5d   %5d  %5d  %5d   \n", nocc, nobs, ncabs, nri, naux);
+    outfile->Printf("  ----------------------------------------\n");
 
     if (FRZN == "TRUE") {
         Dimension dfrzn = ref_wfn->frzcpi();
+        outfile->Printf("\n");
         dfrzn.print();
         nfrzn = dfrzn.max();
     }
     timer::pop(); // Basis Sets
 
-    // Form the one-electron integrals //
-    outfile->Printf("\n  ==> Forming the Integrals <==\n");
-
-    if (READ_INTS) {
-        // Disable HDF5 diagnostic reporting.
-        H5Eset_auto(0, nullptr, nullptr);
-        state::data = h5::open("Data.h5", H5F_ACC_RDWR);
-    }
-
-    if (WRITE_INTS) {
-        // Disable HDF5 diagnostic reporting.
-        H5Eset_auto(0, nullptr, nullptr);
-        state::data = h5::create("Data.h5", H5F_ACC_TRUNC);
-    }
+    /* Form the one-electron integrals */
+    outfile->Printf("\n ===> Forming the Integrals <===\n");
 
     timer::push("Form all the INTS");
     
@@ -912,18 +639,13 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     auto h = std::make_unique<Tensor<double, 2>>("MO One-Electron Integrals", nri, nri);
     timer::pop();
 
-    if (READ_INTS) {
-        read_ints_disk(h.get(), nri, nri);
-    } else if (WRITE_INTS) {
-        write_ints_disk(h.get(), nri, nri);
-    } else {
-        MintsHelper mints(MintsHelper(OBS.basisset(), options, PRINT));
-        outfile->Printf("      One-Electron Integrals\n");
-        oeints(mints, h.get(), bs, nobs, nri);
-    }
+    MintsHelper mints(MintsHelper(OBS.basisset(), options, PRINT));
+    outfile->Printf("      One-Electron Integrals\n");
+    oeints(mints, h.get(), bs, nobs, nri);
+
     timer::pop(); // OEINTS
 
-    // Form the two-electron integrals //
+    /* Form the two-electron integrals */
     timer::push("TEINTS");
     std::vector<std::string> teint = {"FG","Uf","G","F","F2"};
     std::shared_ptr<CorrelationFactor> cgtg(new FittedSlaterCorrelationFactor(1.0));
@@ -936,18 +658,29 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     auto Uf = std::make_unique<Tensor<double, 4>>("MO F12_DoubleCommutator Tensor", nobs, nobs, nobs, nobs);
     timer::pop();
 
-    if (READ_INTS){
-        read_ints_disk(G.get(), nri, nobs, nri, nri);
-        read_ints_disk(F.get(), nobs, nobs, nri, nri);
-        read_ints_disk(F2.get(), nobs, nobs, nobs, nri);
-        read_ints_disk(FG.get(), nobs, nobs, nobs, nobs);
-        read_ints_disk(Uf.get(), nobs, nobs, nobs, nobs);
-    } else if (WRITE_INTS) {
-        write_ints_disk(G.get(), nri, nobs, nri, nri);
-        write_ints_disk(F.get(), nobs, nobs, nri, nri);
-        write_ints_disk(F2.get(), nobs, nobs, nobs, nri);
-        write_ints_disk(FG.get(), nobs, nobs, nobs, nobs);
-        write_ints_disk(Uf.get(), nobs, nobs, nobs, nobs);
+    if (F12_TYPE == "DF") {
+        // [J_AB]^{-1}(B|PQ)
+        auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux, nri, nri);
+        metric_ints(Metric.get(), bs, DFBS, nobs, naux, nri);
+
+        for (int i = 0; i < teint.size(); i++){
+            if ( teint[i] == "F" ){
+                outfile->Printf("      F Integral\n");
+                df_teints(teint[i], F.get(), Metric.get(), bs, DFBS, nobs, naux, nri, cgtg);
+            } else if ( teint[i] == "FG" ){
+                outfile->Printf("      FG Integral\n");
+                df_teints(teint[i], FG.get(), Metric.get(), bs, DFBS, nobs, naux, nri, cgtg);
+            } else if ( teint[i] == "F2" ){
+                outfile->Printf("      F Squared Integral\n");
+                df_teints(teint[i], F2.get(), Metric.get(), bs, DFBS, nobs, naux, nri, cgtg);
+            } else if ( teint[i] == "Uf" ){
+                outfile->Printf("      F Double Commutator Integral\n");
+                df_teints(teint[i], Uf.get(), Metric.get(), bs, DFBS, nobs, naux, nri, cgtg);
+            } else {
+                outfile->Printf("      G Integral\n");
+                df_teints(teint[i], G.get(), Metric.get(), bs, DFBS, nobs, naux, nri, cgtg);
+            }
+        }
     } else {
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
@@ -970,8 +703,8 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     }
     timer::pop(); // TEINTS
 
-    // Form the F12 Matrices //
-    outfile->Printf("\n  ==> Forming the F12 Intermediate Tensors <==\n");
+    /* Form the F12 Matrices */
+    outfile->Printf("\n ===> Forming the F12 Intermediate Tensors <===\n");
     timer::push("F12 INTS");
     timer::push("F12 INTS Allocations");
     auto f = std::make_unique<Tensor<double, 2>>("Fock Matrix", nri, nri);
@@ -983,45 +716,27 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     auto B = std::make_unique<Tensor<double, 4>>("B Intermediate Tensor", nocc, nocc, nocc, nocc);
     timer::pop();
 
-    if (READ_INTS) {
-        read_ints_disk(f.get(), nri, nri);
-        read_ints_disk(k.get(), nri, nri);
-        read_ints_disk(fk.get(), nri, nri);
-        read_ints_disk(V.get(), nocc, nocc, nocc, nocc);
-        read_ints_disk(X.get(), nocc, nocc, nocc, nocc);
-        read_ints_disk(C.get(), nocc, nocc, nobs-nocc, nobs-nocc);
-        read_ints_disk(B.get(), nocc, nocc, nocc, nocc);
-    } else if (WRITE_INTS) {
-        write_ints_disk(f.get(), nri, nri);
-        write_ints_disk(k.get(), nri, nri);
-        write_ints_disk(fk.get(), nri, nri);
-        write_ints_disk(V.get(), nocc, nocc, nocc, nocc);
-        write_ints_disk(X.get(), nocc, nocc, nocc, nocc);
-        write_ints_disk(C.get(), nocc, nocc, nobs-nocc, nobs-nocc);
-        write_ints_disk(B.get(), nocc, nocc, nocc, nocc);
-    } else {
-        outfile->Printf("      Fock Matrix\n");
-        f_mats(f.get(), k.get(), fk.get(), h.get(), G.get(), nocc, nri);
-        outfile->Printf("      V Intermediate\n");
-        V_and_X_mat(V.get(), F.get(), G.get(), FG.get(), nocc, nobs, nri);
-        outfile->Printf("      X Intermediate\n");
-        V_and_X_mat(X.get(), F.get(), F.get(), F2.get(), nocc, nobs, nri);
-        outfile->Printf("      C Intermediate\n");
-        C_mat(C.get(), F.get(), f.get(), nocc, nobs, nri);
-        outfile->Printf("      B Intermediate\n");
-        B_mat(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get(), nocc, nobs, ncabs, nri);
-    }
+    outfile->Printf("      Fock Matrix\n");
+    f_mats(f.get(), k.get(), fk.get(), h.get(), G.get(), nocc, nri);
+    outfile->Printf("      V Intermediate\n");
+    V_and_X_mat(V.get(), F.get(), G.get(), FG.get(), nocc, nobs, nri);
+    outfile->Printf("      X Intermediate\n");
+    V_and_X_mat(X.get(), F.get(), F.get(), F2.get(), nocc, nobs, nri);
+    outfile->Printf("      C Intermediate\n");
+    C_mat(C.get(), F.get(), f.get(), nocc, nobs, nri);
+    outfile->Printf("      B Intermediate\n");
+    B_mat(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get(), nocc, nobs, ncabs, nri);
+
     timer::pop(); // F12 INTS
 
     timer::pop(); // Form all the INTS
 
-    // Compute the MP2F12/3C Energy //
-    outfile->Printf("\n  ==> Computing F12/3C Energy Correction <==\n");
+    /* Compute the MP2F12/3C Energy */
+    outfile->Printf("\n ===> Computing F12/3C(FIX) Energy Correction <===\n");
     timer::push("MP2F12/3C Energy");
     timer::push("Allocations");
     auto E_f12_s = 0.0;
     auto E_f12_t = 0.0;
-    auto E_core = 0.0;
     auto D = std::make_unique<Tensor<double, 4>>("D Tensor", nocc, nocc, nobs-nocc, nobs-nocc);
     auto G_ = (*G)(Range{0, nocc}, Range{0, nocc}, Range{nocc, nobs}, Range{nocc, nobs});
     int kd;
@@ -1033,7 +748,7 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
     outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
                     "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
     outfile->Printf(" ----------------------------------------------------------------------\n");
-    #pragma omp parallel for ordered num_threads(4) reduction(+:E_f12_s,E_f12_t)
+    #pragma omp parallel for ordered num_threads(nthreads) reduction(+:E_f12_s,E_f12_t)
     for (int i = nfrzn; i < nocc; i++) {
         #pragma omp ordered
         for (int j = i; j < nocc; j++) {
@@ -1059,34 +774,45 @@ SharedWavefunction MP2F12(SharedWavefunction ref_wfn, Options& options)
             // Computing the energy
             ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
             auto E_s = kd * (VT.first + BT.first);
-            E_f12_s = E_f12_s + E_s;
+            E_f12_s += E_s;
             auto E_t = 0.0;
             if ( i != j ) {
-                E_t = kd * (VT.second + BT.second);
-                E_f12_t = E_f12_t + E_t;
+                E_t = 3.0 * kd * (VT.second + BT.second);
+                E_f12_t += E_t;
             }
-            auto E_f = E_s + (3.0 * E_t);
+            auto E_f = E_s + E_t;
             outfile->Printf("%3d %3d  |   %16.12f   %16.12f     %16.12f \n", i+1, j+1, E_s, E_t, E_f);
         }
     }
-    E_f12_t = 3.0 * E_f12_t;
-    auto E_f12 = E_f12_s + E_f12_t; 
+    outfile->Printf("\n  F12/3C Singlet Correlation:      %16.12f \n", E_f12_s);
+    outfile->Printf("  F12/3C Triplet Correlation:      %16.12f \n", E_f12_t);
 
     double singles = 0.0;
     if (SINGLES == true) {
         singles = cabs_singles(f.get(), nocc, nri);
     }
 
-    auto e_mp2 = ref_wfn->energy();
-    outfile->Printf("  \n");
-    outfile->Printf(" Total MP2-F12/3C Energy:             %16.12f \n", e_mp2 + E_f12 + singles);
-    outfile->Printf("    MP2 Energy:                       %16.12f \n", e_mp2);
-    outfile->Printf("    F12/3C Singlet Correction:        %16.12f \n", E_f12_s);
-    outfile->Printf("    F12/3C Triplet Correction:        %16.12f \n", E_f12_t);
-    outfile->Printf("    F12/3C Correction:                %16.12f \n", E_f12);
+    if (F12_TYPE == "DF") {
+        outfile->Printf("\n ===> DF-MP2-F12/3C(FIX) Energies <===\n\n");
+    } else {
+        outfile->Printf("\n ===> MP2-F12/3C(FIX) Energies <===\n\n");
+    }
+
+    auto E_rhf = Process::environment.globals["CURRENT REFERENCE ENERGY"];
+    auto E_mp2 = Process::environment.globals["CURRENT CORRELATION ENERGY"];
+    auto E_f12 = E_f12_s + E_f12_t;
+
+    if (F12_TYPE == "DF") {
+        outfile->Printf("  Total DF-MP2-F12/3C(FIX) Energy:      %16.12f \n", E_rhf + E_mp2 + E_f12 + singles);
+    } else {
+        outfile->Printf("  Total MP2-F12/3C(FIX) Energy:         %16.12f \n", E_rhf + E_mp2 + E_f12 + singles);
+    }
+    outfile->Printf("     RHF Reference Energy:              %16.12f \n", E_rhf);
+    outfile->Printf("     MP2 Correlation Energy:            %16.12f \n", E_mp2);
+    outfile->Printf("     F12/3C(FIX) Correlation Energy:    %16.12f \n", E_f12);
 
     if (SINGLES == true) {
-        outfile->Printf("    CABS Singles Correction:          %16.12f \n", singles);
+        outfile->Printf("     CABS Singles Correction:           %16.12f \n", singles);
     }
     timer::pop(); // MP2F12/3C Energy
 

@@ -19,19 +19,18 @@ symmetry c1
 
 set {
   BASIS aug-cc-pvdz
+  DF_BASIS_SCF aug-cc-pvdz-ri
+  DF_BASIS_MP2 aug-cc-pvdz-ri
   CABS_BASIS cc-pvdz-jkfit
-  SCF_TYPE pk
+  SCF_TYPE df
+  MP2_TYPE df
+  F12_TYPE df
+  CABS_SINGLES true
+  FREEZE_CORE true
+  MAXITER 150
   E_CONVERGENCE 1.e-10
   D_CONVERGENCE 1.e-10
   INTS_TOLERANCE 1.e-12
-  MP2_TYPE conv
-  MAXITER 150
-  FREEZE_CORE false
-  CABS_SINGLES true
-}
-
-set MP2F12 {
-  PRINT 0
 }
 
 set_num_threads(4)

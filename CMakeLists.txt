@@ -35,7 +35,10 @@ project(MP2F12 CXX)
 
 find_package(psi4 1.1 REQUIRED)
 
-add_psi4_plugin(MP2F12 plugin.cc)
+add_psi4_plugin(MP2F12 
+    plugin.cc
+    teints.cc
+)
 
 add_subdirectory(external)
 
