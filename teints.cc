@@ -44,16 +44,79 @@
 
 #include "einsums/TensorAlgebra.hpp"
 #include "einsums/Sort.hpp"
-#include "einsums/Timer.hpp"
 #include "einsums/Tensor.hpp"
-#include "einsums/Print.hpp"
 
-namespace psi{ namespace MP2F12 {
+namespace psi{ namespace mp2f12 {
+
+void convert_C(einsums::Tensor<double,2> *C, OrbitalSpace bs)
+{
+    using namespace einsums;
+
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
+
+    auto dim1 = (*C).dim(0);
+    auto dim2 = (*C).dim(1);
+
+#pragma omp parallel for collapse(2) num_threads(nthreads)
+    for (int p = 0; p < dim1; p++) {
+        for (int q = 0; q < dim2; q++) {
+            (*C)(p, q) = bs.C()->get(p,q);
+        }
+    }
+}
+
+void set_ERI(einsums::TensorView<double, 4>& ERI_Slice, einsums::Tensor<double, 4> *Slice)
+{
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
+
+    auto dim1 = (*Slice).dim(0);
+    auto dim2 = (*Slice).dim(1);
+    auto dim3 = (*Slice).dim(2);
+    auto dim4 = (*Slice).dim(3);
+
+#pragma omp parallel for collapse(4) num_threads(nthreads)
+    for (int p = 0; p < dim1; p++){
+        for (int q = 0; q < dim2; q++){
+            for (int r = 0; r < dim3; r++){
+                for (int s = 0; s < dim4; s++){
+                    ERI_Slice(p, q, r, s) = (*Slice)(p, q, r, s);
+                }
+            }
+        }
+    }
+}
+
+void set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<double, 3> *Slice)
+{
+    int nthreads = 1;
+#ifdef _OPENMP
+    nthreads = Process::environment.get_n_threads();
+#endif
+
+    auto naux = (*Slice).dim(0);
+    auto dim1 = (*Slice).dim(1);
+    auto dim2 = (*Slice).dim(2);
+
+#pragma omp parallel for collapse(3) num_threads(nthreads)
+    for (int A = 0; A < naux; A++){
+        for (int p = 0; p < dim1; p++){
+            for (int q = 0; q < dim2; q++){
+                ERI_Slice(A, p, q) = (*Slice)(A, p, q);
+            }
+        }
+    }
+}
 
 void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::vector<OrbitalSpace>& bs, 
             const int& nobs, std::shared_ptr<CorrelationFactor> corr)
 {
-    using namespace einsums; 
+    using namespace einsums;
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
@@ -62,16 +125,16 @@ void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::v
     nthreads = Process::environment.get_n_threads();
 #endif
 
-    std::vector<int> o_tei = {0, 0, 0, 0};
+    std::vector<int> o_ints = {0, 0, 0, 0};
     if ( int_type == "F" ){
-        o_tei = {0, 0, 0, 0,
+        o_ints = {0, 0, 0, 0,
                  0, 0, 0, 1,
                  0, 0, 1, 1};
     } else if ( int_type == "F2" ){
-        o_tei = {0, 0, 0, 0,
+        o_ints = {0, 0, 0, 0,
                  0, 0, 0, 1};
     } else if ( int_type == "G" ){ 
-        o_tei = {0, 0, 0, 0,
+        o_ints = {0, 0, 0, 0,
                  0, 0, 0, 1,
                  1, 0, 0, 1,
                  1, 0, 1, 0}; 
@@ -79,19 +142,18 @@ void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::v
 
     int nmo1, nmo2, nmo3, nmo4;
     int I, J, K, L;
-    for (int idx = 0; idx < (o_tei.size()/4); idx++) {
+    for (int idx = 0; idx < (o_ints.size()/4); idx++) {
         int i = idx * 4;
-        auto bs1 = bs[o_tei[i]].basisset();
-        auto bs2 = bs[o_tei[i+1]].basisset();
-        auto bs3 = bs[o_tei[i+2]].basisset();
-        auto bs4 = bs[o_tei[i+3]].basisset();
+        auto bs1 = bs[o_ints[i]].basisset();
+        auto bs2 = bs[o_ints[i+1]].basisset();
+        auto bs3 = bs[o_ints[i+2]].basisset();
+        auto bs4 = bs[o_ints[i+3]].basisset();
         auto nbf1 = bs1->nbf();
         auto nbf2 = bs2->nbf();
         auto nbf3 = bs3->nbf();
         auto nbf4 = bs4->nbf();
 
         // Create ERI AO Tensor
-        timer::push("ERI Building");
         auto GAO = std::make_unique<Tensor<double, 4>>("ERI AO", nbf1, nbf2, nbf3, nbf4);
         {
             IntegralFactory intf(bs1, bs3, bs2, bs4);
@@ -139,52 +201,25 @@ void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::v
                 }
             }
         }
-        timer::pop(); // ERI Building
 	
         // Convert all Psi4 C Matrices to einsums Tensor<double, 2>
-        timer::push("Convert C Matrices to Tensors");
-        (o_tei[i] == 1) ? nmo1 = nbf1 - nobs : nmo1 = nbf1;
-        (o_tei[i+1] == 1) ? nmo2 = nbf2 - nobs : nmo2 = nbf2;
-        (o_tei[i+2] == 1) ? nmo3 = nbf3 - nobs : nmo3 = nbf3;
-        (o_tei[i+3] == 1) ? nmo4 = nbf4 - nobs : nmo4 = nbf4;
+        (o_ints[i] == 1) ? nmo1 = nbf1 - nobs : nmo1 = nbf1;
+        (o_ints[i+1] == 1) ? nmo2 = nbf2 - nobs : nmo2 = nbf2;
+        (o_ints[i+2] == 1) ? nmo3 = nbf3 - nobs : nmo3 = nbf3;
+        (o_ints[i+3] == 1) ? nmo4 = nbf4 - nobs : nmo4 = nbf4;
 
         auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
         auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
         auto C3 = std::make_unique<Tensor<double, 2>>("C3", nbf3, nmo3);
         auto C4 = std::make_unique<Tensor<double, 2>>("C4", nbf4, nmo4);
         {
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf1; p++) {
-                for (int q = 0; q < nmo1; q++) {
-                    (*C1)(p,q) = bs[o_tei[i]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf2; p++) {
-                for (int q = 0; q < nmo2; q++) {
-                    (*C2)(p,q) = bs[o_tei[i+1]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf3; p++) {
-                for (int q = 0; q < nmo3; q++) {
-                    (*C3)(p,q) = bs[o_tei[i+2]].C()->get(p,q);	
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf4; p++) {
-                for (int q = 0; q < nmo4; q++) {
-                    (*C4)(p,q) = bs[o_tei[i+3]].C()->get(p,q);	
-                }
-            }
+            convert_C(C1.get(), bs[o_ints[i]]);
+            convert_C(C2.get(), bs[o_ints[i+1]]);
+            convert_C(C3.get(), bs[o_ints[i+2]]);
+            convert_C(C4.get(), bs[o_ints[i+3]]);
         }
-        timer::pop(); // Convert C Matrices to Tensors
 	
         // Transform ERI AO Tensor to ERI MO Tensor
-        timer::push("Full Transformation");
         auto PQRS = std::make_unique<Tensor<double, 4>>("PQRS", nmo1, nmo2, nmo3, nmo4);
         auto RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", 0, 0, 0, 0);
         {
@@ -222,69 +257,33 @@ void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::v
                 sort(Indices{R, S, P, Q}, &RSPQ, Indices{P, Q, R, S}, PQRS);
             }
         }
-        timer::pop(); // Full Transformation
 
         // Stitch into ERI Tensor
-        timer::push("Stitch into ERI Tensor");
         {
-            (o_tei[i] == 1) ? I = nobs : I = 0;
-            (o_tei[i+1] == 1) ? J = nobs : J = 0;
-            (o_tei[i+2] == 1) ? K = nobs : K = 0;
-            (o_tei[i+3] == 1) ? L = nobs : L = 0;
+            (o_ints[i] == 1) ? I = nobs : I = 0;
+            (o_ints[i+1] == 1) ? J = nobs : J = 0;
+            (o_ints[i+2] == 1) ? K = nobs : K = 0;
+            (o_ints[i+3] == 1) ? L = nobs : L = 0;
 
-            timer::push("Put into ERI Tensor");
             TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{I, J, K, L}};
-            #pragma omp parallel for collapse(4) num_threads(nthreads)
-            for (int i = 0; i < nmo1; i++){
-                for (int j = 0; j < nmo2; j++){
-                    for (int k = 0; k < nmo3; k++){
-                        for (int l = 0; l < nmo4; l++){
-                            ERI_PQRS(i, j, k, l) = (*PQRS)(i, j, k, l);
-                        }
-                    }
-                }
-            }	
-            timer::pop();
+            set_ERI(ERI_PQRS, PQRS.get());
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
                 Tensor<double, 4> QPSR{"QPSR", nmo2, nmo1, nmo4, nmo3};
                 sort(Indices{Q, P, S, R}, &QPSR, Indices{R, S, P, Q}, RSPQ);
-                timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
-                #pragma omp parallel for collapse(4) num_threads(nthreads)
-                for (int j = 0; j < nmo2; j++){
-                    for (int i = 0; i < nmo1; i++){
-                        for (int l = 0; l < nmo4; l++){
-                            for (int k = 0; k < nmo3; k++){
-                                ERI_QPSR(j, i, l, k) = QPSR(j, i, l, k);
-                            }
-                        }
-                    }
-                }
-                timer::pop();
+                set_ERI(ERI_QPSR, &QPSR);
             } // end of if statement
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "G") {
                 Tensor<double, 4> SRQP{"SRQP", nmo4, nmo3, nmo2, nmo1};
                 sort(Indices{S, R, Q, P}, &SRQP, Indices{P, Q, R, S}, PQRS);
-                timer::push("Put into ERI Tensor");
                 TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
-                #pragma omp parallel for collapse(4) num_threads(nthreads)
-                for (int l = 0; l < nmo4; l++){
-                    for (int k = 0; k < nmo3; k++){
-                        for (int j = 0; j < nmo2; j++){
-                            for (int i = 0; i < nmo1; i++){
-                                ERI_SRQP(l, k, j, i) = SRQP(l, k, j, i);
-                            }
-                        }
-                    }
-                }
-                timer::pop();
+                set_ERI(ERI_SRQP, &SRQP);
             } // end of if statement
         }
         RSPQ.reset(nullptr);
         PQRS.reset(nullptr);
-        timer::pop(); // Stitch into ERI Tensor
     } // end of for loop
 }
 
@@ -316,7 +315,6 @@ void metric_ints(einsums::Tensor<double, 3> *DF_ERI, const std::vector<OrbitalSp
         auto nbf1 = bs1->nbf();
         auto nbf2 = bs2->nbf();
 
-        timer::push("AO Building");
         auto Bpq = std::make_unique<Tensor<double, 3>>("Metric AO", naux, nbf1, nbf2);
         {
             std::shared_ptr<IntegralFactory> intf(new IntegralFactory(dfbs, zero, bs1, bs2));
@@ -350,32 +348,17 @@ void metric_ints(einsums::Tensor<double, 3> *DF_ERI, const std::vector<OrbitalSp
                 }
             }
         }
-        timer::pop(); // AO Building
 
-        timer::push("Convert C Matrices to Tensors");
         (o_ints[i] == 1) ? nmo1 = nbf1 - nobs : nmo1 = nbf1;
         (o_ints[i+1] == 1) ? nmo2 = nbf2 - nobs : nmo2 = nbf2;
 
         auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
         auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
         {
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf1; p++) {
-                for (int q = 0; q < nmo1; q++) {
-                    (*C1)(p, q) = bs[o_ints[i]].C()->get(p, q);
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf2; p++) {
-                for (int q = 0; q < nmo2; q++) {
-                    (*C2)(p, q) = bs[o_ints[i+1]].C()->get(p, q);
-                }
-            }
+            convert_C(C1.get(), bs[o_ints[i]]);
+            convert_C(C2.get(), bs[o_ints[i+1]]);
         }
-        timer::pop(); // Convert C Matrices
 
-        timer::push("Full Transformation");
         auto BPQ = std::make_unique<Tensor<double, 3>>("BPQ", naux, nmo1, nmo2);
         {
             // C2
@@ -391,9 +374,7 @@ void metric_ints(einsums::Tensor<double, 3> *DF_ERI, const std::vector<OrbitalSp
             C1.reset();
             sort(Indices{B, P, Q}, &BPQ, Indices{B, Q, P}, BQP);
         }
-        timer::pop(); // Full Transform
 
-        timer::push("Form Metric");
         auto APQ = std::make_unique<Tensor<double, 3>>("APQ", naux, nmo1, nmo2);
         {
             auto metric = std::make_shared<FittingMetric>(dfbs, true);
@@ -411,25 +392,15 @@ void metric_ints(einsums::Tensor<double, 3> *DF_ERI, const std::vector<OrbitalSp
             einsum(Indices{A, P, Q}, &APQ, Indices{A, B}, AB, Indices{B, P, Q}, BPQ);
         }
         BPQ.reset();
-        timer::pop(); // Form Metric
 
-        timer::push("Put into DF_ERI Tensor");
         {
             (o_ints[i] == 1) ? R = nobs : R = 0;
             (o_ints[i+1] == 1) ? S = nobs : S = 0;
 
             TensorView<double, 3> ERI_APQ{*DF_ERI, Dim<3>{naux, nmo1, nmo2}, Offset<3>{0, R, S}};
-            #pragma omp parallel for collapse(3) num_threads(nthreads)
-            for (int A = 0; A < naux; A++){
-                for (int P = 0; P < nmo1; P++){
-                    for (int Q = 0; Q < nmo2; Q++){
-                        ERI_APQ(A, P, Q) = (*APQ)(A, P, Q);
-                    }
-                }
-            }
+            set_ERI(ERI_APQ, APQ.get());
         }
         APQ.reset();
-        timer::pop(); // Put in to DF_ERI Tensor
     } // end of for loop
 }
 
@@ -468,7 +439,6 @@ void oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, 
         auto nbf1 = bs1->nbf();
         auto nbf2 = bs2->nbf();
 
-        timer::push("AO Building");
         auto Bpq = std::make_unique<Tensor<double, 3>>("(B|R|pq) AO", naux, nbf1, nbf2);
         {
             std::shared_ptr<IntegralFactory> intf_Bpq(
@@ -495,7 +465,6 @@ void oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, 
                 ints_AB = std::shared_ptr<TwoBodyAOInt>(intf_AB->eri());
             }
 
-            timer::push("(B|R|pq)");
             const double *buffer_Bpq = ints_Bpq->buffer();
             for (int B = 0; B < dfbs->nshell(); B++) {
                 for (int P = 0; P < bs1->nshell(); P++) {
@@ -523,9 +492,6 @@ void oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, 
                     }
                 }
             }
-            timer::pop();
-
-            timer::push("(A|R|B)");
 
             const double *buffer_AB = ints_AB->buffer();
             for (int A = 0; A < dfbs->nshell(); A++) {
@@ -548,35 +514,19 @@ void oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, 
                     }
                 }
             }
-            timer::pop();
         }
-        timer::pop(); // AO Building
 
         // Convert all Psi4 C Matrices to einsums Tensor<double, 2>
-        timer::push("Convert C Matrices to Tensors");
         (o_ints[i] == 1) ? nmo1 = nbf1 - nobs : nmo1 = nbf1;
         (o_ints[i+1] == 1) ? nmo2 = nbf2 - nobs : nmo2 = nbf2;
 
         auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
         auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
         {
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf1; p++) {
-                for (int q = 0; q < nmo1; q++) {
-                    (*C1)(p, q) = bs[o_ints[i]].C()->get(p, q);
-                }
-            }
-
-            #pragma omp parallel for collapse(2) num_threads(nthreads)
-            for (int p = 0; p < nbf2; p++) {
-                for (int q = 0; q < nmo2; q++) {
-                    (*C2)(p, q) = bs[o_ints[i+1]].C()->get(p, q);
-                }
-            }
+            convert_C(C1.get(), bs[o_ints[i]]);
+            convert_C(C2.get(), bs[o_ints[i+1]]);
         }
-        timer::pop(); // Convert C Matrices to Tensors
 
-        timer::push("Full Transformation");
         auto BPQ = std::make_unique<Tensor<double, 3>>("BPQ", naux, nmo1, nmo2);
         {
             // C2
@@ -592,25 +542,15 @@ void oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, 
             C1.reset();
             sort(Indices{B, P, Q}, &BPQ, Indices{B, Q, P}, BQP);
         }
-        timer::pop(); // Full Transform
 
-        timer::push("Put into DF_ERI Tensor");
         {
             (o_ints[i] == 1) ? R = nobs : R = 0;
             (o_ints[i+1] == 1) ? S = nobs : S = 0;
 
             TensorView<double, 3> ERI_BPQ{*DF_ERI, Dim<3>{naux, nmo1, nmo2}, Offset<3>{0, R, S}};
-            #pragma omp parallel for collapse(3) num_threads(nthreads)
-            for (int B = 0; B < naux; B++){
-                for (int P = 0; P < nmo1; P++){
-                    for (int Q = 0; Q < nmo2; Q++){
-                        ERI_BPQ(B, P, Q) = (*BPQ)(B, P, Q);
-                    }
-                }
-            }
+            set_ERI(ERI_BPQ, BPQ.get());
         }
         BPQ.reset();
-        timer::pop(); // Put in to DF_ERI Tensor
     } // end of for loop
 }
 
@@ -669,43 +609,24 @@ void df_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, ein
             Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
             Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
 
-            timer::push("Term 1");
             einsum(Indices{p, q, r, s}, &chem_robust, Indices{A, p, q}, left_metric, Indices{A, r, s}, right_oper);
-            timer::pop();
 
-            timer::push("Term 2");
             einsum(1.0, Indices{p, q, r, s}, &chem_robust,
                    1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
-            timer::pop();
 
-            timer::push("Term 3");
             Tensor<double, 3> tmp{"Temp", naux, nmo3, nmo4};
             einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
             einsum(1.0, Indices{p, q, r, s}, &chem_robust,
                    -1.0, Indices{A, p, q}, left_metric, Indices{A, r, s}, tmp);
-            timer::pop();
 
-            timer::push("Chem to Phys");
             sort(Indices{p, r, q, s}, &phys_robust, Indices{p, q, r, s}, chem_robust);
-            timer::pop();
         }
 
-        timer::push("Stitch into ERI Tensor");
         {
             TensorView<double, 4> ERI_PRQS{(*ERI), Dim<4>{nmo1, nmo3, nmo2, nmo4}, Offset<4>{P, R, Q, S}};
-            #pragma omp parallel for collapse(4) num_threads(nthreads) schedule(guided)
-            for (int p = 0; p < nmo1; p++){
-                for (int r = 0; r < nmo3; r++){
-                    for (int q = 0; q < nmo2; q++){
-                        for (int s = 0; s < nmo4; s++){
-                            ERI_PRQS(p, r, q, s) = (*phys_robust)(p, r, q, s);
-                        }
-                    }
-                }
-            }
+            set_ERI(ERI_PRQS, phys_robust.get());
             phys_robust.reset();
         }
-        timer::pop(); // Stitch into ERI Tensor
     } // end of for loop
 }
 

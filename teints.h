@@ -35,7 +35,12 @@
 
 #include "einsums/Tensor.hpp"
 
-namespace psi{ namespace MP2F12 {
+namespace psi{ namespace mp2f12 {
+
+void convert_C(einsums::Tensor<double,2> *C, std::shared_ptr<BasisSet> bs);
+
+void set_ERI(einsums::TensorView<double, 4>& ERI_Slice, einsums::Tensor<double, 4> *Slice);
+void set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<double, 3> *Slice);
 
 void teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, std::vector<OrbitalSpace>& bs, 
             const int& nobs, std::shared_ptr<CorrelationFactor> corr);
