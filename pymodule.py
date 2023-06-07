@@ -33,59 +33,65 @@ import psi4.driver.p4util as p4util
 from psi4.driver.procrouting import proc_util
 from psi4.core import OrbitalSpace
 
-def run_MP2F12(name, **kwargs):
+def run_mp2f12(name, **kwargs):
     r"""Function encoding sequence of PSI module and plugin calls so that
     mp2f12 can be called via :py:func:`~driver.energy`. For post-scf plugins.
 
-    >>> energy('mp2f12')
+    >>> energy("mp2f12")
 
     """
     lowername = name.lower()
     kwargs = p4util.kwargs_lower(kwargs)
 
-    # Your plugin's psi4 run sequence goes here
-    psi4.core.set_local_option('MP2F12', 'PRINT', 0)
+    # Ensure that SCF and MP2 are run with CONV if F12_TYPE is CONV
+    # Set DF_BASIS_* to all be the same
+    if psi4.core.get_local_option("MP2F12", "F12_TYPE") == "CONV":
+        psi4.core.set_global_option("MP2_TYPE", "CONV")
 
-    # Compute a SCF reference, a wavefunction is return which holds the molecule used, orbitals
+    # Ensure that SCF and MP2 are run with DF if F12_TYPE is DF
+    # Set DF_BASIS_* to all be the same
+    if psi4.core.get_local_option("MP2F12", "F12_TYPE") == "DF":
+        dfbs = psi4.core.get_local_option("MP2F12", "DF_BASIS_F12")
+        psi4.core.set_global_option("SCF_TYPE", "DF")
+        psi4.core.set_local_option("SCF", "DF_BASIS_SCF", dfbs)
+        psi4.core.set_global_option("MP2_TYPE", "DF")
+        psi4.core.set_local_option("MP2", "DF_BASIS_MP2", dfbs)
+
+    # Compute a MP2 reference, a wavefunction is return which holds the molecule used, orbitals
     # Fock matrices, and more
-    ref_wfn = kwargs.get('ref_wfn', None)
-    if ref_wfn is None:
-        #ref_wfn = psi4.driver.scf_helper(name, **kwargs)
-        e_mp2, ref_wfn = psi4.driver.energy('mp2', return_wfn = True)
+    ref_wfn = kwargs.get("ref_wfn", None)
+    if ref_wfn == None:
+        e_mp2, ref_wfn = psi4.driver.energy("mp2", return_wfn = True)
         cabs = build_cabs(ref_wfn)
-    ref_wfn.set_basisset('CABS', cabs)
+    ref_wfn.set_basisset("CABS", cabs)
 
     # Ensure IWL files have been written when not using DF/CD
-    proc_util.check_iwl_file_from_scf_type(psi4.core.get_option('SCF', 'SCF_TYPE'), ref_wfn)
+    proc_util.check_iwl_file_from_scf_type(psi4.core.get_option("SCF", "SCF_TYPE"), ref_wfn)
 
-    # Call the Psi4 plugin
-    # Please note that setting the reference wavefunction in this way is ONLY for plugins
-    mp2f12_wfn = psi4.core.plugin('MP2F12.so', ref_wfn)
-
-    return mp2f12_wfn
+    return psi4.core.plugin("mp2f12.so", ref_wfn)
 
 
 # Integration with driver routines
-psi4.driver.procedures['energy']['mp2f12'] = run_MP2F12
+psi4.driver.procedures["energy"]["mp2f12"] = run_mp2f12
 
 def build_cabs(wfn):
-    '''
+    """
     Builds and returns CABS
     Provide wave function from RHF,
     OBS, and tolerance for linear dependence
-    '''
-    keys = ['BASIS','CABS_BASIS']
+    """
+    keys = ["BASIS","CABS_BASIS"]
     targets = []
-    roles = ['ORBITAL','F12']
+    roles = ["ORBITAL","F12"]
     others = []
-    targets.append(psi4.core.get_global_option('BASIS'))
-    targets.append(psi4.core.get_global_option('CABS_BASIS'))
-    others.append(psi4.core.get_global_option('BASIS'))
-    others.append(psi4.core.get_global_option('BASIS'))
+    targets.append(psi4.core.get_global_option("BASIS"))
+    targets.append(psi4.core.get_local_option("MP2F12", "CABS_BASIS"))
+    others.append(psi4.core.get_global_option("BASIS"))
+    others.append(psi4.core.get_global_option("BASIS"))
 
     # Creates combined basis set in Python
     mol = wfn.molecule()
-    combined = psi4.driver.qcdb.libmintsbasisset.BasisSet.pyconstruct_combined(mol.save_string_xyz(),keys,targets,roles,others)
-    cabs = psi4.core.BasisSet.construct_from_pydict(mol,combined,combined['puream'])
+    combined = psi4.driver.qcdb.libmintsbasisset.BasisSet.pyconstruct_combined(mol.save_string_xyz(), keys, targets, roles, others)
+    cabs = psi4.core.BasisSet.construct_from_pydict(mol, combined, combined["puream"])
     return cabs
 
