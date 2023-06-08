@@ -2,7 +2,7 @@
 # PYTHONPATH must include directory above plugin directory.
 #     Define either externally or here, then import plugin.
 sys.path.insert(0, './..')
-import MP2F12
+import mp2f12
 
 memory 32gb 
 
@@ -19,18 +19,18 @@ symmetry c1
 
 set {
   BASIS aug-cc-pvdz
-  CABS_BASIS cc-pvdz-jkfit
-  SCF_TYPE pk
+  FREEZE_CORE true
+  MAXITER 150
   E_CONVERGENCE 1.e-10
   D_CONVERGENCE 1.e-10
   INTS_TOLERANCE 1.e-12
-  MP2_TYPE conv
-  MAXITER 150
-  FREEZE_CORE false
 }
 
-set MP2F12 {
-  PRINT 0
+set mp2f12 {
+  CABS_BASIS cc-pvdz-jkfit
+  DF_BASIS_F12 aug-cc-pvdz-ri
+  F12_TYPE df
+  CABS_SINGLES true
 }
 
 set_num_threads(4)

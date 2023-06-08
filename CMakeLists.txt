@@ -28,20 +28,33 @@
 # @END LICENSE
 #
 
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(MP2F12 CXX)
+project(mp2f12 CXX)
+set(mp2f12_AUTHORS      "Erica C. Mitchell")
+set(mp2f12_Description  "Explicitly Correlated MP2 plugin to Psi4")
+set(mp2f12_URL  "github.com/EricaCMitchell/mp2f12")
+
 
 find_package(psi4 1.1 REQUIRED)
 
-add_psi4_plugin(MP2F12 plugin.cc)
+find_package(OpenMP)
+if (OpenMP_FOUND)
+    message(STATUS "OpenMP Version ${OpenMP_CXX_VERSION_MAJOR}.${OpenMP_CXX_VERSION_MINOR}")
+endif()
+
+add_psi4_plugin(mp2f12 
+    plugin.cc
+    mp2f12.cc
+    integrals.cc
+    f12_intermediates.cc
+)
 
 add_subdirectory(external)
 
-target_link_libraries(MP2F12
+target_link_libraries(mp2f12
     PUBLIC
         einsums
 )
-
-
