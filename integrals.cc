@@ -595,36 +595,26 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
             if ( int_type == "F" ){
                 for (size_t i = 0; i < nthreads_; i++) {
                     ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
                     ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12(cgtg_)));
                 }
             } else if ( int_type == "FG" ){
                 for (size_t i = 0; i < nthreads_; i++) {
                     ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12g12(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
                     ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12g12(cgtg_)));
                 }
             } else if ( int_type == "F2" ){
                 for (size_t i = 0; i < nthreads_; i++) {
                     ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_squared(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
                     ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_squared(cgtg_)));
                 }
             } else if ( int_type == "Uf" ){
                 for (size_t i = 0; i < nthreads_; i++) {
                     ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_double_commutator(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
                     ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_double_commutator(cgtg_)));
                 }
             } else {
                 for (size_t i = 0; i < nthreads_; i++) {
                     ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->eri()));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
                     ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->eri()));
                 }
             }
