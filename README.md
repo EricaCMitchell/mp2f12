@@ -2,8 +2,7 @@
 Psi4 Plugin of MP2-F12/3C(FIX)
 
 Dependencies:
-- Psi4 branch 1.3
-- Libint 1
+- Psi4
 - EinsumsInCpp
 
 Cloning:
