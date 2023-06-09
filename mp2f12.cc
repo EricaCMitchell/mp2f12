@@ -82,7 +82,7 @@ void MP2F12::common_init()
     }
 
     beta_ = options_.get_double("F12_BETA");
-    cgtg_ = std::make_shared<FittedSlaterCorrelationFactor>(beta_);
+    cgtg_ = {};
 
     nthreads_ = 1;
 #ifdef _OPENMP
@@ -142,16 +142,29 @@ void MP2F12::form_basissets()
     bs_ = {OBS, CABS};
 }
 
+void MP2F12::form_cgtg() {
+    // The fitting coefficients and the exponents
+    std::vector<double> coeffs = {-0.31442480597241274, -0.30369575353387201, -0.16806968430232927,
+                                  -0.098115812152857612, -0.060246640234342785, -0.037263541968504843};
+    std::vector<double> exps = {0.22085085450735284, 1.0040191632019282, 3.6212173098378728,
+                                12.162483236221904, 45.855332448029337, 254.23460688554644};
+
+    for (size_t i = 0; i < exps.size(); i++){
+        auto exp_scaled = (beta_ * beta_) * exps[i];
+        cgtg_.push_back(std::make_pair(exp_scaled, coeffs[i]));
+    }
+}
+
 void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f)
 {
     using namespace einsums;
     using namespace tensor_algebra;
 
     #pragma omp parallel for collapse(4) num_threads(nthreads_)
-    for (int i = 0; i < nocc_; i++) {
-        for (int j = 0; j < nocc_; j++) {
-            for (int a = nocc_; a < nobs_; a++) {
-                for (int b = nocc_; b < nobs_; b++) {
+    for (size_t i = 0; i < nocc_; i++) {
+        for (size_t j = 0; j < nocc_; j++) {
+            for (size_t a = nocc_; a < nobs_; a++) {
+                for (size_t b = nocc_; b < nobs_; b++) {
                     auto denom = (*f)(a, a) + (*f)(b, b) - (*f)(i, i) - (*f)(j, j);
                     (*D)(i, j, a - nocc_, b - nocc_) = (1 / denom);
                 }
@@ -191,8 +204,8 @@ void MP2F12::form_cabs_singles(einsums::Tensor<double,2> *f)
 
     double E_s = 0.0;
     #pragma omp parallel for collapse(2) num_threads(nthreads_) reduction(+:E_s)
-    for (int A = 0; A < all_vir; A++) {
-        for (int i = 0; i < nocc_; i++) {
+    for (size_t A = 0; A < all_vir; A++) {
+        for (size_t i = 0; i < nocc_; i++) {
             E_s += 2 * pow(f_iA(i, A), 2) / (e_ij(i) - e_AB(A));
         }
     }
@@ -220,9 +233,9 @@ void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<doubl
                     "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
     outfile->Printf(" ----------------------------------------------------------------------\n");
     #pragma omp parallel for ordered num_threads(nthreads_) reduction(+:E_f12_s, E_f12_t)
-    for (int i = nfrzn_; i < nocc_; i++) {
+    for (size_t i = nfrzn_; i < nocc_; i++) {
         #pragma omp ordered
-        for (int j = i; j < nocc_; j++) {
+        for (size_t j = i; j < nocc_; j++) {
             // Allocations
             Tensor<double, 4> X_{"Scaled X", nocc_, nocc_, nocc_, nocc_};
             Tensor<double, 4> B_{"B ij", nocc_, nocc_, nocc_, nocc_};
@@ -271,7 +284,11 @@ double MP2F12::compute_energy()
     /* Form the orbital spaces */
     form_basissets();
 
+    /* Form the contracted Gaussian-type geminal */
+    form_cgtg();
+
     outfile->Printf("\n ===> Forming the Integrals <===\n");
+    options_.set_str("GLOBALS", "SCREENING", "NONE");
 
     /* Form the one-electron integrals */
     auto h = std::make_unique<Tensor<double, 2>>("MO One-Electron Integrals", nri_, nri_);
