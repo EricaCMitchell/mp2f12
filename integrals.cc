@@ -109,58 +109,44 @@ void MP2F12::one_body_ao_computer(std::vector<std::shared_ptr<OneBodyAOInt>> int
         nthread = ints.size();
     }
 
-    // Grab the buffers
-    std::vector<const double *> ints_buff(nthread);
-    for (size_t thread = 0; thread < nthread; thread++) {
-        ints_buff[thread] = ints[thread]->buffer();
-    }
+    const auto &shell_pairs = ints[0]->shellpairs();
+    size_t n_pairs = shell_pairs.size();
 
 // Loop it
 #pragma omp parallel for schedule(guided) num_threads(nthread)
-    for (size_t MU = 0; MU < bs1->nshell(); ++MU) {
-        const size_t num_mu = bs1->shell(MU).nfunction();
-        const size_t index_mu = bs1->shell(MU).function_index();
-
+    for (size_t p = 0; p < n_pairs; ++p) {
         size_t rank = 0;
 #ifdef _OPENMP
         rank = omp_get_thread_num();
 #endif
+        auto mu = shell_pairs[p].first;
+        auto nu = shell_pairs[p].second;
+        const size_t num_mu = bs1->shell(mu).nfunction();
+        const size_t index_mu = bs1->shell(mu).function_index();
+        const size_t num_nu = bs2->shell(nu).nfunction();
+        const size_t index_nu = bs2->shell(nu).function_index();
 
+        ints[rank]->compute_shell(mu, nu);
+        const auto *ints_buff = ints[rank]->buffers()[0];
+
+        size_t index = 0;
         if (symm) {
             // Triangular
-            for (size_t NU = 0; NU <= MU; ++NU) {
-                const size_t num_nu = bs2->shell(NU).nfunction();
-                const size_t index_nu = bs2->shell(NU).function_index();
-
-                ints[rank]->compute_shell(MU, NU);
-
-                size_t index = 0;
-                for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
-                    for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
-                        M->set(nu, mu, ints_buff[rank][index]);
-                        M->set(mu, nu, ints_buff[rank][index++]);
-                    }
+            for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
+                for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
+                    M->set(nu, mu, ints_buff[index]);
+                    M->set(mu, nu, ints_buff[index++]);
                 }
-            }  // End NU
-        }      // End Symm
-        else {
+            }
+        } else {
             // Rectangular
-            for (size_t NU = 0; NU < bs2->nshell(); ++NU) {
-                const size_t num_nu = bs2->shell(NU).nfunction();
-                const size_t index_nu = bs2->shell(NU).function_index();
-
-                ints[rank]->compute_shell(MU, NU);
-
-                size_t index = 0;
-                for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
-                    for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
-                        //printf("%zu %zu | %zu %zu | %lf\n", MU, NU, mu, nu, ints_buff[rank][index]);
-                        M->set(mu, nu, ints_buff[rank][index++]);
-                    }
+            for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
+                for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
+                    M->set(mu, nu, ints_buff[index++]);
                 }
-            }  // End NU
-        }      // End Rectangular
-    }          // End Mu
+            }
+        } // End if-else
+    } // End for loop
 }
 
 SharedMatrix MP2F12::ao_kinetic(std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2)
@@ -254,7 +240,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
                  0, 0, 1, 1};
     } else if ( int_type == "F2" ){
         order = {0, 0, 0, 0,
-                0, 0, 0, 1};
+                 0, 0, 0, 1};
     } else if ( int_type == "G" ){ 
         order = {0, 0, 0, 0,
                  0, 0, 0, 1,
@@ -282,31 +268,20 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
 
             std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
             if ( int_type == "F" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12(cgtg_)));
-                }
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12(cgtg_)));
             } else if ( int_type == "FG" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12g12(cgtg_)));
-                }
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12g12(cgtg_)));
             } else if ( int_type == "F2" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_squared(cgtg_)));
-                }
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_squared(cgtg_)));
             } else if ( int_type == "Uf" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_double_commutator(cgtg_)));
-                }
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_double_commutator(cgtg_)));
             } else { 
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
-                }
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
             }
-
-            // Grab the buffers
-            std::vector<const double *> ints_buff(nthreads_);
-            for (size_t thread = 0; thread < nthreads_; thread++) {
-                ints_buff[thread] = ints[thread]->buffer();
+            
+            // Make ints vector
+            for (size_t thread = 1; thread < nthreads_; thread++) {
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
             }
             
 #pragma omp parallel for collapse(4) schedule(guided) num_threads(nthreads_)
@@ -325,6 +300,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
 #endif
 
                             ints[rank]->compute_shell(M, N, P, Q);
+                            const auto *ints_buff = ints[rank]->buffers()[0];
 
                             size_t index = 0;
                             for (size_t m = 0; m < mM; m++) {
@@ -334,7 +310,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
                                             (*GAO)(bs1->shell(M).function_index() + m,
                                                    bs2->shell(P).function_index() + p,
                                                    bs3->shell(N).function_index() + n, 
-                                                   bs4->shell(Q).function_index() + q) = ints_buff[rank][index++];
+                                                   bs4->shell(Q).function_index() + q) = ints_buff[index++];
                                         }
                                     }
                                 }
@@ -457,14 +433,8 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
             std::shared_ptr<IntegralFactory> intf(new IntegralFactory(DFBS_, zero, bs1, bs2));
 
             std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
-            for (size_t i = 0; i < nthreads_; i++) {
+            for (size_t thread = 1; thread < nthreads_; thread++) {
                 ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
-            }
-
-            // Grab the buffers
-            std::vector<const double *> ints_buff(nthreads_);
-            for (size_t thread = 0; thread < nthreads_; thread++) {
-                ints_buff[thread] = ints[thread]->buffer();
             }
 
 #pragma omp parallel for collapse(3) schedule(guided) num_threads(nthreads_)
@@ -484,6 +454,7 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
 #endif
 
                         ints[rank]->compute_shell(B, 0, P, Q);
+                        const auto *ints_buff = ints[rank]->buffers()[0];
 
                         size_t index = 0;
                         for (size_t b = 0; b < numB; b++) {
@@ -491,7 +462,7 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
                                 for (size_t q = 0; q < numQ; q++) {
                                     (*Bpq)(Bstart + b,
                                            Pstart + p,
-                                           Qstart + q) = ints_buff[rank][index++];
+                                           Qstart + q) = ints_buff[index++];
                                 }
                             }
                         }
@@ -593,46 +564,26 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
             std::vector<std::shared_ptr<TwoBodyAOInt>> ints_Bpq;
             std::vector<std::shared_ptr<TwoBodyAOInt>> ints_AB;
             if ( int_type == "F" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12(cgtg_)));
-                }
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12(cgtg_)));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12(cgtg_)));
             } else if ( int_type == "FG" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12g12(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12g12(cgtg_)));
-                }
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12g12(cgtg_)));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12g12(cgtg_)));
             } else if ( int_type == "F2" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_squared(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_squared(cgtg_)));
-                }
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_squared(cgtg_)));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_squared(cgtg_)));
             } else if ( int_type == "Uf" ){
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_double_commutator(cgtg_)));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_double_commutator(cgtg_)));
-                }
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_double_commutator(cgtg_)));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_double_commutator(cgtg_)));
             } else {
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->eri()));
-                }
-                for (size_t i = 0; i < nthreads_; i++) {
-                    ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->eri()));
-                }
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->eri()));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->eri()));
             }
 
-            // Grab the buffers
-            std::vector<const double *> ints_Bpq_buff(nthreads_);
-            for (size_t thread = 0; thread < nthreads_; thread++) {
-                ints_Bpq_buff[thread] = ints_Bpq[thread]->buffer();
+            // Make ints vectors
+            for (size_t thread = 1; thread < nthreads_; thread++) {
+                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(ints_Bpq[0]->clone()));
+                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(ints_AB[0]->clone()));
             }
 
 #pragma omp parallel for schedule(guided) num_threads(nthreads_)
@@ -652,6 +603,7 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
 #endif
 
                         ints_Bpq[rank]->compute_shell(B, 0, P, Q);
+                        const auto *ints_Bpq_buff = ints_Bpq[rank]->buffers()[0];
 
                         size_t index = 0;
                         for (size_t b = 0; b < numB; b++) {
@@ -659,18 +611,12 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
                                 for (size_t q = 0; q < numQ; q++) {
                                     (*Bpq)(Bstart + b,
                                            Pstart + p,
-                                           Qstart + q) = ints_Bpq_buff[rank][index++];
+                                           Qstart + q) = ints_Bpq_buff[index++];
                                 }
                             }
                         }
                     }
                 }
-            }
-
-            // Grab the buffers
-            std::vector<const double *> ints_AB_buff(nthreads_);
-            for (size_t thread = 0; thread < nthreads_; thread++) {
-                ints_AB_buff[thread] = ints_AB[thread]->buffer();
             }
 
 #pragma omp parallel for schedule(guided) num_threads(nthreads_)
@@ -687,12 +633,13 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
 #endif
 
                     ints_AB[rank]->compute_shell(A, 0, B, 0);
+                    const auto *ints_AB_buff = ints_AB[rank]->buffers()[0];
 
                     size_t index = 0;
                     for (size_t a = 0; a < numA; a++) {
                         for (size_t b = 0; b < numB; b++) {
                             (*AB)(Astart + a,
-                                  Bstart + b) = ints_AB_buff[rank][index++];
+                                  Bstart + b) = ints_AB_buff[index++];
                         }
                     }
                 }

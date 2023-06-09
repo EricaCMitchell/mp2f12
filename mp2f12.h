@@ -92,7 +92,7 @@ class MP2F12 : public Wavefunction {
     int nfrzn_;
 
     /* F12 Correlation Factor, Contracted Gaussian-Type Geminal */
-    std::shared_ptr<CorrelationFactor> cgtg_;
+    std::vector<std::pair<double, double>> cgtg_;
 
     /* $\beta$ in F12 CGTG */
     double beta_;
@@ -108,6 +108,9 @@ class MP2F12 : public Wavefunction {
 
     /* Form the basis sets OBS and CABS */
     void form_basissets();
+
+    /* Form F12 CGTG */
+    void form_cgtg();
 
     /* Form the energy denominator */
     void form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f);
