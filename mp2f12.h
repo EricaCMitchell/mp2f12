@@ -109,9 +109,6 @@ class MP2F12 : public Wavefunction {
     /* Form the basis sets OBS and CABS */
     void form_basissets();
 
-    /* Form F12 CGTG */
-    void form_cgtg();
-
     /* Form the energy denominator */
     void form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f);
 
@@ -170,12 +167,6 @@ class MP2F12 : public Wavefunction {
     std::pair<double, double> B_Tilde(einsums::Tensor<double, 4>& B, einsums::Tensor<double, 4> *C, 
                                       einsums::TensorView<double, 2>& D_ij, 
                                       const int& i, const int& j);
-
-    void one_body_ao_computer(std::vector<std::shared_ptr<OneBodyAOInt>> ints, SharedMatrix M, bool symm);
-
-    SharedMatrix ao_kinetic(std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2);
-
-    SharedMatrix ao_potential(std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2);
 
     void convert_C(einsums::Tensor<double,2> *C, OrbitalSpace bs);
 

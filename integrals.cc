@@ -38,6 +38,7 @@
 #include <psi4/libmints/basisset.h>
 #include <psi4/libmints/integral.h>
 #include <psi4/libmints/matrix.h>
+#include <psi4/libmints/mintshelper.h>
 #include <psi4/libmints/onebody.h>
 #include <psi4/libmints/orbitalspace.h>
 #include <psi4/lib3index/dftensor.h>
@@ -97,82 +98,6 @@ void MP2F12::set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<
     }
 }
 
-void MP2F12::one_body_ao_computer(std::vector<std::shared_ptr<OneBodyAOInt>> ints, SharedMatrix M, bool symm)
-{
-    // Grab basis info
-    std::shared_ptr<BasisSet> bs1 = ints[0]->basis1();
-    std::shared_ptr<BasisSet> bs2 = ints[0]->basis2();
-
-    // Limit to the number of incoming onbody ints
-    size_t nthread = nthreads_;
-    if (nthread > ints.size()) {
-        nthread = ints.size();
-    }
-
-    const auto &shell_pairs = ints[0]->shellpairs();
-    size_t n_pairs = shell_pairs.size();
-
-// Loop it
-#pragma omp parallel for schedule(guided) num_threads(nthread)
-    for (size_t p = 0; p < n_pairs; ++p) {
-        size_t rank = 0;
-#ifdef _OPENMP
-        rank = omp_get_thread_num();
-#endif
-        auto mu = shell_pairs[p].first;
-        auto nu = shell_pairs[p].second;
-        const size_t num_mu = bs1->shell(mu).nfunction();
-        const size_t index_mu = bs1->shell(mu).function_index();
-        const size_t num_nu = bs2->shell(nu).nfunction();
-        const size_t index_nu = bs2->shell(nu).function_index();
-
-        ints[rank]->compute_shell(mu, nu);
-        const auto *ints_buff = ints[rank]->buffers()[0];
-
-        size_t index = 0;
-        if (symm) {
-            // Triangular
-            for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
-                for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
-                    M->set(nu, mu, ints_buff[index]);
-                    M->set(mu, nu, ints_buff[index++]);
-                }
-            }
-        } else {
-            // Rectangular
-            for (size_t mu = index_mu; mu < (index_mu + num_mu); ++mu) {
-                for (size_t nu = index_nu; nu < (index_nu + num_nu); ++nu) {
-                    M->set(mu, nu, ints_buff[index++]);
-                }
-            }
-        } // End if-else
-    } // End for loop
-}
-
-SharedMatrix MP2F12::ao_kinetic(std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2)
-{
-    IntegralFactory factory(bs1, bs2, bs1, bs2);
-    std::vector<std::shared_ptr<OneBodyAOInt>> ints_vec;
-    for (size_t i = 0; i < nthreads_; i++) {
-        ints_vec.push_back(std::shared_ptr<OneBodyAOInt>(factory.ao_kinetic()));
-    }
-    auto kinetic_mat = std::make_shared<Matrix>("AO-basis Kinetic Ints", bs1->nbf(), bs2->nbf());
-    one_body_ao_computer(ints_vec, kinetic_mat, bs1 == bs2);
-    return kinetic_mat;
-}
-
-SharedMatrix MP2F12::ao_potential(std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2)
-{
-    IntegralFactory factory(bs1, bs2, bs1, bs2);
-    std::vector<std::shared_ptr<OneBodyAOInt>> ints_vec;
-    for (size_t i = 0; i < nthreads_; i++) {
-        ints_vec.push_back(std::shared_ptr<OneBodyAOInt>(factory.ao_potential()));
-    }
-    auto potential_mat = std::make_shared<Matrix>("AO-basis Potential Ints", bs1->nbf(), bs2->nbf());
-    one_body_ao_computer(ints_vec, potential_mat, bs1 == bs2);
-    return potential_mat;
-}
-
 void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
 { 
     using namespace einsums;
@@ -187,6 +112,7 @@ void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
         (  order[i] == 1  ) ? (nmo1 = ncabs_, M = nobs_) : (nmo1 = nobs_, M = 0);
         ( order[i+3] == 1 ) ? (nmo2 = ncabs_, N = nobs_) : (nmo2 = nobs_, N = 0);
 
+        auto mints = reference_wavefunction_->mintshelper();
 
         // Transform OEI AO Matrix into OEI MO Matrix
         auto t_mo = std::make_shared<Matrix>("MO-based T Integral", nmo1, nmo2);
@@ -196,8 +122,8 @@ void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
             auto bs2 = bs_[order[i+3]].basisset();
             auto C1 = bs_[ order[i] ].C();
             auto C2 = bs_[order[i+3]].C();
-            auto t_ao = ao_kinetic(bs1, bs2);
-            auto v_ao = ao_potential(bs1, bs2);
+            auto t_ao = mints->ao_kinetic(bs1, bs2);
+            auto v_ao = mints->ao_potential(bs1, bs2);
             t_mo->transform(C1, t_ao, C2);
             v_mo->transform(C1, v_ao, C2);
             t_ao.reset();

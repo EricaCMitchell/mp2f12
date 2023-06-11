@@ -18,7 +18,7 @@ symmetry c1
 }
 
 set {
-  BASIS aug-cc-pvtz
+  BASIS aug-cc-pvdz
   FREEZE_CORE true
   MAXITER 150
   E_CONVERGENCE 1.e-10
@@ -27,7 +27,7 @@ set {
 }
 
 set mp2f12 {
-  CABS_BASIS cc-pvtz-jkfit
+  CABS_BASIS cc-pvdz-jkfit
   #DF_BASIS_F12 aug-cc-pvdz-ri
   #F12_TYPE df
   CABS_SINGLES true

@@ -40,6 +40,7 @@
 #include <psi4/libmints/basisset.h>
 #include <psi4/libmints/dimension.h>
 #include <psi4/libmints/integralparameters.h>
+#include <psi4/libmints/mintshelper.h>
 #include <psi4/libmints/orbitalspace.h>
 #include <psi4/libmints/wavefunction.h>
 
@@ -82,7 +83,7 @@ void MP2F12::common_init()
     }
 
     beta_ = options_.get_double("F12_BETA");
-    cgtg_ = {};
+    cgtg_ = reference_wavefunction_->mintshelper()->f12_cgtg(beta_);
 
     nthreads_ = 1;
 #ifdef _OPENMP
@@ -140,19 +141,6 @@ void MP2F12::form_basissets()
     outfile->Printf("  ----------------------------------------\n");
 
     bs_ = {OBS, CABS};
-}
-
-void MP2F12::form_cgtg() {
-    // The fitting coefficients and the exponents
-    std::vector<double> coeffs = {-0.31442480597241274, -0.30369575353387201, -0.16806968430232927,
-                                  -0.098115812152857612, -0.060246640234342785, -0.037263541968504843};
-    std::vector<double> exps = {0.22085085450735284, 1.0040191632019282, 3.6212173098378728,
-                                12.162483236221904, 45.855332448029337, 254.23460688554644};
-
-    for (size_t i = 0; i < exps.size(); i++){
-        auto exp_scaled = (beta_ * beta_) * exps[i];
-        cgtg_.push_back(std::make_pair(exp_scaled, coeffs[i]));
-    }
 }
 
 void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f)
@@ -283,9 +271,6 @@ double MP2F12::compute_energy()
 
     /* Form the orbital spaces */
     form_basissets();
-
-    /* Form the contracted Gaussian-type geminal */
-    form_cgtg();
 
     outfile->Printf("\n ===> Forming the Integrals <===\n");
     options_.set_str("GLOBALS", "SCREENING", "NONE");
