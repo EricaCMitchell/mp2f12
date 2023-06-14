@@ -359,7 +359,7 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
             std::shared_ptr<IntegralFactory> intf(new IntegralFactory(DFBS_, zero, bs1, bs2));
 
             std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
-            for (size_t thread = 1; thread < nthreads_; thread++) {
+            for (size_t thread = 0; thread < nthreads_; thread++) {
                 ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
             }
 
@@ -657,11 +657,14 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
             Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
             Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
 
+            // Term 1
             einsum(Indices{p, q, r, s}, &chem_robust, Indices{A, p, q}, left_metric, Indices{A, r, s}, right_oper);
 
+            // Term 2
             einsum(1.0, Indices{p, q, r, s}, &chem_robust,
                    1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
 
+            // Term 3
             Tensor<double, 3> tmp{"Temp", naux_, nmo3, nmo4};
             einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
             einsum(1.0, Indices{p, q, r, s}, &chem_robust,
