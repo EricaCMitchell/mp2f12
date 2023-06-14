@@ -36,10 +36,12 @@
 #include "mp2f12.h"
 
 #include <psi4/libpsi4util/PsiOutStream.h>
+#include <psi4/libqt/qt.h>
 
 #include <psi4/libmints/basisset.h>
 #include <psi4/libmints/dimension.h>
 #include <psi4/libmints/integralparameters.h>
+#include <psi4/libmints/mintshelper.h>
 #include <psi4/libmints/orbitalspace.h>
 #include <psi4/libmints/wavefunction.h>
 
@@ -82,7 +84,7 @@ void MP2F12::common_init()
     }
 
     beta_ = options_.get_double("F12_BETA");
-    cgtg_ = {};
+    cgtg_ = reference_wavefunction_->mintshelper()->f12_cgtg(beta_);
 
     nthreads_ = 1;
 #ifdef _OPENMP
@@ -92,7 +94,7 @@ void MP2F12::common_init()
 
 void MP2F12::print_header()
 {
-    outfile->Printf(" -----------------------------------------------------------\n");
+    outfile->Printf("\n -----------------------------------------------------------\n");
     if (f12_type_ == "DF") {
         outfile->Printf("                      DF-MP2-F12/3C(FIX)                    \n");
         outfile->Printf("       2nd Order Density-Fitted Explicitly Correlated       \n");
@@ -140,19 +142,6 @@ void MP2F12::form_basissets()
     outfile->Printf("  ----------------------------------------\n");
 
     bs_ = {OBS, CABS};
-}
-
-void MP2F12::form_cgtg() {
-    // The fitting coefficients and the exponents
-    std::vector<double> coeffs = {-0.31442480597241274, -0.30369575353387201, -0.16806968430232927,
-                                  -0.098115812152857612, -0.060246640234342785, -0.037263541968504843};
-    std::vector<double> exps = {0.22085085450735284, 1.0040191632019282, 3.6212173098378728,
-                                12.162483236221904, 45.855332448029337, 254.23460688554644};
-
-    for (size_t i = 0; i < exps.size(); i++){
-        auto exp_scaled = (beta_ * beta_) * exps[i];
-        cgtg_.push_back(std::make_pair(exp_scaled, coeffs[i]));
-    }
 }
 
 void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f)
@@ -282,17 +271,18 @@ double MP2F12::compute_energy()
     print_header();
 
     /* Form the orbital spaces */
+    timer_on("OBS and CABS");
     form_basissets();
-
-    /* Form the contracted Gaussian-type geminal */
-    form_cgtg();
+    timer_off("OBS and CABS");
 
     outfile->Printf("\n ===> Forming the Integrals <===\n");
-    options_.set_str("GLOBALS", "SCREENING", "NONE");
+    options_.set_global_str("SCREENING", "NONE");
 
     /* Form the one-electron integrals */
     auto h = std::make_unique<Tensor<double, 2>>("MO One-Electron Integrals", nri_, nri_);
+    timer_on("OEINTS");
     form_oeints(h.get());
+    timer_off("OEINTS");
 
     /* Form the two-electron integrals */
     std::vector<std::string> teint = {"FG","Uf","G","F","F2"};
@@ -311,38 +301,58 @@ double MP2F12::compute_energy()
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
                 outfile->Printf("   F Integral\n");
+                timer_on("F_12 Integral");
                 form_df_teints(teint[i], F.get(), Metric.get());
+                timer_off("F_12 Integral");
             } else if ( teint[i] == "FG" ){
                 outfile->Printf("   FG Integral\n");
+                timer_on("FG_12 Integral");
                 form_df_teints(teint[i], FG.get(), Metric.get());
+                timer_off("FG_12 Integral");
             } else if ( teint[i] == "F2" ){
                 outfile->Printf("   F Squared Integral\n");
+                timer_on("F^2_12 Integral");
                 form_df_teints(teint[i], F2.get(), Metric.get());
+                timer_off("F^2_12 Integral");
             } else if ( teint[i] == "Uf" ){
                 outfile->Printf("   F Double Commutator Integral\n");
+                timer_on("U^F_12 Integral");
                 form_df_teints(teint[i], Uf.get(), Metric.get());
+                timer_off("U^F_12 Integral");
             } else {
                 outfile->Printf("   G Integral\n");
+                timer_on("G Integral");
                 form_df_teints(teint[i], G.get(), Metric.get());
+                timer_off("G Integral");
             }
         }
     } else {
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
                 outfile->Printf("   F Integral\n");
+                timer_on("F_12 Integral");
                 form_teints(teint[i], F.get());
+                timer_off("F_12 Integral");
             } else if ( teint[i] == "FG" ){
                 outfile->Printf("   FG Integral\n");
+                timer_on("FG_12 Integral");
                 form_teints(teint[i], FG.get());
+                timer_off("FG_12 Integral");
             } else if ( teint[i] == "F2" ){
                 outfile->Printf("   F Squared Integral\n");
+                timer_on("F^2_12 Integral");
                 form_teints(teint[i], F2.get());
+                timer_off("F^2_12 Integral");
             } else if ( teint[i] == "Uf" ){
                 outfile->Printf("   F Double Commutator Integral\n");
+                timer_on("U^F_12 Integral");
                 form_teints(teint[i], Uf.get());
+                timer_off("U^F_12 Integral");
             } else {
                 outfile->Printf("   G Integral\n");
+                timer_on("G Integral");
                 form_teints(teint[i], G.get());
+                timer_off("G Integral");
             }
         }
     }
@@ -359,29 +369,50 @@ double MP2F12::compute_energy()
     auto D = std::make_unique<Tensor<double, 4>>("D Tensor", nocc_, nocc_, nobs_ - nocc_, nobs_ - nocc_);
 
     outfile->Printf("   V Intermediate\n");
+    timer_on("V Intermediate");
     form_V_or_X(V.get(), F.get(), G.get(), FG.get());
+    timer_off("V Intermediate");
     FG.reset();
+
     outfile->Printf("   X Intermediate\n");
+    timer_on("X Intermediate");
     form_V_or_X(X.get(), F.get(), F.get(), F2.get());
+    timer_off("X Intermediate");
+
     outfile->Printf("   Fock Matrix\n");
+    timer_on("Fock Matrix");
     form_fock(f.get(), k.get(), fk.get(), h.get(), G.get());
+    timer_off("Fock Matrix");
     h.reset();
+
     outfile->Printf("   C Intermediate\n");
+    timer_on("C Intermediate");
     form_C(C.get(), F.get(), f.get());
+    timer_off("C Intermediate");
+
     outfile->Printf("   B Intermediate\n");
+    timer_on("B Intermediate");
     form_B(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get());
+    timer_off("B Intermediate");
     Uf.reset();
     F2.reset();
     F.reset();
     fk.reset();
+
+    timer_on("Energy Denom");
     form_D(D.get(), f.get());
+    timer_off("Energy Denom");
 
     /* Compute the MP2F12/3C Energy */
     outfile->Printf("\n ===> Computing F12/3C(FIX) Energy Correction <===\n");
+    timer_on("F12 Energy Correction");
     form_f12_energy(G.get(), X.get(), B.get(), V.get(), f.get(), C.get(), D.get());
+    timer_off("F12 Energy Correction");
 
     if (singles_ == true) {
+        timer_on("CABS Singles Correction");
         form_cabs_singles(f.get());
+        timer_off("CABS Singles Correction");
     }
 
     print_results();
