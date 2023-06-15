@@ -215,28 +215,31 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
                 for (size_t N = 0; N < bs3->nshell(); N++) {
                     for (size_t P = 0; P < bs2->nshell(); P++) {
                         for (size_t Q = 0; Q < bs4->nshell(); Q++) {
-                            const size_t mM = bs1->shell(M).nfunction();
-                            const size_t nN = bs3->shell(N).nfunction();
-                            const size_t pP = bs2->shell(P).nfunction();
-                            const size_t qQ = bs4->shell(Q).nfunction();
-
                             size_t rank = 0;
 #ifdef _OPENMP
                             rank = omp_get_thread_num();
 #endif
+                            const size_t numM = bs1->shell(M).nfunction();
+                            const size_t numN = bs3->shell(N).nfunction();
+                            const size_t numP = bs2->shell(P).nfunction();
+                            const size_t numQ = bs4->shell(Q).nfunction();
+                            const size_t index_M = bs1->shell(M).function_index();
+                            const size_t index_N = bs3->shell(N).function_index();
+                            const size_t index_P = bs2->shell(P).function_index();
+                            const size_t index_Q = bs4->shell(Q).function_index();
 
                             ints[rank]->compute_shell(M, N, P, Q);
                             const auto *ints_buff = ints[rank]->buffers()[0];
 
                             size_t index = 0;
-                            for (size_t m = 0; m < mM; m++) {
-                                for (size_t n = 0; n < nN; n++) {
-                                    for (size_t p = 0; p < pP; p++) {
-                                        for (size_t q = 0; q < qQ; q++) {
-                                            (*GAO)(bs1->shell(M).function_index() + m,
-                                                   bs2->shell(P).function_index() + p,
-                                                   bs3->shell(N).function_index() + n, 
-                                                   bs4->shell(Q).function_index() + q) = ints_buff[index++];
+                            for (size_t m = 0; m < numM; m++) {
+                                for (size_t n = 0; n < numN; n++) {
+                                    for (size_t p = 0; p < numP; p++) {
+                                        for (size_t q = 0; q < numQ; q++) {
+                                            (*GAO)(index_M + m,
+                                                   index_P + p,
+                                                   index_N + n,
+                                                   index_Q + q) = ints_buff[index++];
                                         }
                                     }
                                 }
@@ -367,17 +370,16 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
             for (size_t B = 0; B < DFBS_->nshell(); B++) {
                 for (size_t P = 0; P < bs1->nshell(); P++) {
                     for (size_t Q = 0; Q < bs2->nshell(); Q++) {
-                        size_t numB = DFBS_->shell(B).nfunction();
-                        size_t numP = bs1->shell(P).nfunction();
-                        size_t numQ = bs2->shell(Q).nfunction();
-                        size_t Bstart = DFBS_->shell(B).function_index();
-                        size_t Pstart = bs1->shell(P).function_index();
-                        size_t Qstart = bs2->shell(Q).function_index();
-
                         size_t rank = 0;
 #ifdef _OPENMP
                         rank = omp_get_thread_num();
 #endif
+                        const size_t numB = DFBS_->shell(B).nfunction();
+                        const size_t numP = bs1->shell(P).nfunction();
+                        const size_t numQ = bs2->shell(Q).nfunction();
+                        const size_t index_B = DFBS_->shell(B).function_index();
+                        const size_t index_P = bs1->shell(P).function_index();
+                        const size_t index_Q = bs2->shell(Q).function_index();
 
                         ints[rank]->compute_shell(B, 0, P, Q);
                         const auto *ints_buff = ints[rank]->buffers()[0];
@@ -386,9 +388,9 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
                         for (size_t b = 0; b < numB; b++) {
                             for (size_t p = 0; p < numP; p++) {
                                 for (size_t q = 0; q < numQ; q++) {
-                                    (*Bpq)(Bstart + b,
-                                           Pstart + p,
-                                           Qstart + q) = ints_buff[index++];
+                                    (*Bpq)(index_B + b,
+                                           index_P + p,
+                                           index_Q + q) = ints_buff[index++];
                                 }
                             }
                         }
@@ -452,7 +454,7 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
     } // end of for loop
 }
 
-void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, einsums::Tensor<double, 2> *AB)
+void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -461,14 +463,9 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
     std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
 
     std::vector<int> order = {0, 0};
-    if ( int_type == "F" || int_type == "F2" ){
+    if ( int_type != "Uf" || int_type != "FG" ){
         order = {0, 0,
                  0, 1};
-    } else if ( int_type == "G" ){ 
-        order = {0, 0,
-                 0, 1,
-                 1, 0,
-                 1, 1}; 
     }
 
     int nmo1, nmo2;
@@ -482,90 +479,54 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
 
         auto Bpq = std::make_unique<Tensor<double, 3>>("(B|R|pq) AO", naux_, nbf1, nbf2);
         {
-            std::shared_ptr<IntegralFactory> intf_Bpq(
+            std::shared_ptr<IntegralFactory> intf(
                     new IntegralFactory(DFBS_, zero, bs1, bs2));
-            std::shared_ptr<IntegralFactory> intf_AB(
-                    new IntegralFactory(DFBS_, zero, DFBS_, zero));
 
-            std::vector<std::shared_ptr<TwoBodyAOInt>> ints_Bpq;
-            std::vector<std::shared_ptr<TwoBodyAOInt>> ints_AB;
+            std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
             if ( int_type == "F" ){
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12(cgtg_)));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12(cgtg_)));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12(cgtg_)));
             } else if ( int_type == "FG" ){
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12g12(cgtg_)));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12g12(cgtg_)));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12g12(cgtg_)));
             } else if ( int_type == "F2" ){
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_squared(cgtg_)));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_squared(cgtg_)));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_squared(cgtg_)));
             } else if ( int_type == "Uf" ){
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->f12_double_commutator(cgtg_)));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->f12_double_commutator(cgtg_)));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_double_commutator(cgtg_)));
             } else {
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(intf_Bpq->eri()));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(intf_AB->eri()));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
             }
 
             // Make ints vectors
             for (size_t thread = 1; thread < nthreads_; thread++) {
-                ints_Bpq.push_back(std::shared_ptr<TwoBodyAOInt>(ints_Bpq[0]->clone()));
-                ints_AB.push_back(std::shared_ptr<TwoBodyAOInt>(ints_AB[0]->clone()));
+                ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
             }
 
 #pragma omp parallel for schedule(guided) num_threads(nthreads_)
             for (size_t B = 0; B < DFBS_->nshell(); B++) {
                 for (size_t P = 0; P < bs1->nshell(); P++) {
                     for (size_t Q = 0; Q < bs2->nshell(); Q++) {
-                        size_t numB = DFBS_->shell(B).nfunction();
-                        size_t numP = bs1->shell(P).nfunction();
-                        size_t numQ = bs2->shell(Q).nfunction();
-                        size_t Bstart = DFBS_->shell(B).function_index();
-                        size_t Pstart = bs1->shell(P).function_index();
-                        size_t Qstart = bs2->shell(Q).function_index();
-
                         size_t rank = 0;
 #ifdef _OPENMP
                         rank = omp_get_thread_num();
 #endif
+                        const size_t numB = DFBS_->shell(B).nfunction();
+                        const size_t numP = bs1->shell(P).nfunction();
+                        const size_t numQ = bs2->shell(Q).nfunction();
+                        const size_t index_B = DFBS_->shell(B).function_index();
+                        const size_t index_P = bs1->shell(P).function_index();
+                        const size_t index_Q = bs2->shell(Q).function_index();
 
-                        ints_Bpq[rank]->compute_shell(B, 0, P, Q);
-                        const auto *ints_Bpq_buff = ints_Bpq[rank]->buffers()[0];
+                        ints[rank]->compute_shell(B, 0, P, Q);
+                        const auto *ints_buff = ints[rank]->buffers()[0];
 
                         size_t index = 0;
                         for (size_t b = 0; b < numB; b++) {
                             for (size_t p = 0; p < numP; p++) {
                                 for (size_t q = 0; q < numQ; q++) {
-                                    (*Bpq)(Bstart + b,
-                                           Pstart + p,
-                                           Qstart + q) = ints_Bpq_buff[index++];
+                                    (*Bpq)(index_B + b,
+                                           index_P + p,
+                                           index_Q + q) = ints_buff[index++];
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-#pragma omp parallel for schedule(guided) num_threads(nthreads_)
-            for (size_t A = 0; A < DFBS_->nshell(); A++) {
-                for (size_t B = 0; B < DFBS_->nshell(); B++) {
-                    size_t numA = DFBS_->shell(A).nfunction();
-                    size_t numB = DFBS_->shell(B).nfunction();
-                    size_t Astart = DFBS_->shell(A).function_index();
-                    size_t Bstart = DFBS_->shell(B).function_index();
-
-                    size_t rank = 0;
-#ifdef _OPENMP
-                    rank = omp_get_thread_num();
-#endif
-
-                    ints_AB[rank]->compute_shell(A, 0, B, 0);
-                    const auto *ints_AB_buff = ints_AB[rank]->buffers()[0];
-
-                    size_t index = 0;
-                    for (size_t a = 0; a < numA; a++) {
-                        for (size_t b = 0; b < numB; b++) {
-                            (*AB)(Astart + a,
-                                  Bstart + b) = ints_AB_buff[index++];
                         }
                     }
                 }
@@ -610,6 +571,60 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
     } // end of for loop
 }
 
+void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double, 2> *DF_ERI)
+{
+    using namespace einsums;
+    using namespace tensor_algebra;
+    using namespace tensor_algebra::index;
+
+    std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
+
+    std::shared_ptr<IntegralFactory> intf(new IntegralFactory(DFBS_, zero, DFBS_, zero));
+
+    std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
+    if ( int_type == "F" ){
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12(cgtg_)));
+    } else if ( int_type == "FG" ){
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12g12(cgtg_)));
+    } else if ( int_type == "F2" ){
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_squared(cgtg_)));
+    } else if ( int_type == "Uf" ){
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12_double_commutator(cgtg_)));
+    } else {
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
+    }
+
+    // Make ints vectors
+    for (size_t thread = 1; thread < nthreads_; thread++) {
+        ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
+    }
+
+#pragma omp parallel for schedule(guided) num_threads(nthreads_)
+    for (size_t A = 0; A < DFBS_->nshell(); A++) {
+        for (size_t B = 0; B < DFBS_->nshell(); B++) {
+            size_t rank = 0;
+#ifdef _OPENMP
+            rank = omp_get_thread_num();
+#endif
+            const size_t numA = DFBS_->shell(A).nfunction();
+            const size_t numB = DFBS_->shell(B).nfunction();
+            const size_t index_A = DFBS_->shell(A).function_index();
+            const size_t index_B = DFBS_->shell(B).function_index();
+
+            ints[rank]->compute_shell(A, 0, B, 0);
+            const auto *ints_buff = ints[rank]->buffers()[0];
+
+            size_t index = 0;
+            for (size_t a = 0; a < numA; a++) {
+                for (size_t b = 0; b < numB; b++) {
+                    (*DF_ERI)(index_A + a,
+                          index_B + b) = ints_buff[index++];
+                }
+            }
+        }
+    }
+}
+
 void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, einsums::Tensor<double, 3> *Metric)
 {
     using namespace einsums;
@@ -617,13 +632,14 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
     using namespace tensor_algebra::index;
 
     auto ARB = std::make_unique<Tensor<double, 2>>("(A|R|B) MO", naux_, naux_);
-    auto ARPQ = std::make_unique<Tensor<double, 3>>("(A|R|PQ) MO", naux_, nri_, nri_);
+    form_oper_ints(int_type, ARB.get());
 
-    form_oper_ints(int_type, ARPQ.get(), ARB.get());
+    auto ARPQ = std::make_unique<Tensor<double, 3>>("(A|R|PQ) MO", naux_, nobs_, nri_);
+    form_oper_ints(int_type, ARPQ.get());
 
     // In (PQ|RS) ordering
     std::vector<int> order = {0, 0, 0, 0};
-    if ( int_type == "F" ){
+    if ( int_type == "F" || int_type == "G" ){
         order = {0, 0, 0, 0,
                  0, 0, 0, 1,
                  0, 1, 0, 0,
@@ -631,13 +647,6 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
     } else if ( int_type == "F2" ){
         order = {0, 0, 0, 0,
                  0, 0, 0, 1};
-    } else if ( int_type == "G" ){ 
-        order = {0, 0, 0, 0,
-                 0, 0, 0, 1,
-                 0, 1, 0, 0,
-                 1, 0, 0, 0,
-                 1, 0, 0, 1,
-                 1, 1, 0, 0}; 
     }
 
     int P, Q, R, S;
@@ -652,23 +661,25 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
         auto phys_robust = std::make_unique<Tensor<double, 4>>("<PR|F12|QS> MO", nmo1, nmo3, nmo2, nmo4);
         {
             Tensor<double, 4> chem_robust("(PQ|F12|RS) MO", nmo1, nmo2, nmo3, nmo4);
-            Tensor left_metric  = (*Metric)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
-            Tensor right_metric = (*Metric)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
-            Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
-            Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
 
             // Term 1
+            Tensor left_metric  = (*Metric)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
+            Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
             einsum(Indices{p, q, r, s}, &chem_robust, Indices{A, p, q}, left_metric, Indices{A, r, s}, right_oper);
 
-            // Term 2
-            einsum(1.0, Indices{p, q, r, s}, &chem_robust,
-                   1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
+            if ( int_type != "G" ) {
+                // Term 2
+                Tensor right_metric = (*Metric)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
+                Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
+                einsum(1.0, Indices{p, q, r, s}, &chem_robust,
+                       1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
 
-            // Term 3
-            Tensor<double, 3> tmp{"Temp", naux_, nmo3, nmo4};
-            einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
-            einsum(1.0, Indices{p, q, r, s}, &chem_robust,
-                   -1.0, Indices{A, p, q}, left_metric, Indices{A, r, s}, tmp);
+                // Term 3
+                Tensor<double, 3> tmp{"Temp", naux_, nmo3, nmo4};
+                einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
+                einsum(1.0, Indices{p, q, r, s}, &chem_robust,
+                       -1.0, Indices{A, p, q}, left_metric, Indices{A, r, s}, tmp);
+            }
 
             sort(Indices{p, r, q, s}, &phys_robust, Indices{p, q, r, s}, chem_robust);
         }

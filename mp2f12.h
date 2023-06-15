@@ -131,9 +131,14 @@ class MP2F12 : public Wavefunction {
     void form_df_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, einsums::Tensor<double, 3> *Metric);
     
     /* Form the Fock matrix */
-    void form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
+    void form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
                    einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
                    einsums::Tensor<double, 4> *G);
+
+    /* Form the DF Fock matrix */
+    void form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
+                      einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
+                      einsums::Tensor<double, 3> *Metric);
 
     /* Form the $V^{ij}_{kl}$ or $X^{ij}_{kl}$ tensor */
     void form_V_or_X(einsums::Tensor<double, 4> *VX, einsums::Tensor<double, 4> *F,
@@ -177,7 +182,8 @@ class MP2F12 : public Wavefunction {
     void form_metric_ints(einsums::Tensor<double, 3> *DF_ERI);
     
     /* Form the integrals containing the explicit correlation (B|\hat{A}_{12}|PQ) */
-    void form_oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI, einsums::Tensor<double, 2> *AB);
+    void form_oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI);
+    void form_oper_ints(const std::string& int_type, einsums::Tensor<double, 2> *DF_ERI);
 };
 
 }} // end namespaces

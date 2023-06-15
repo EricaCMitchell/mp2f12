@@ -48,16 +48,55 @@ void MP2F12::form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2>
     (*f) = (*h)(All, All);
     {
         Tensor Id = create_identity_tensor("I", nocc_, nocc_);
-        TensorView<double, 4> G1_view{(*G), Dim<4>{nri_, nocc_, nri_, nocc_}};
-        TensorView<double, 4> G2_view{(*G), Dim<4>{nri_, nocc_, nocc_, nri_}};
-        auto G1_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
-        auto G2_pqiI = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
+        TensorView<double, 4> J_view{(*G), Dim<4>{nri_, nocc_, nri_, nocc_}};
+        TensorView<double, 4> K_view{(*G), Dim<4>{nri_, nocc_, nocc_, nri_}};
+        auto J_sorted = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
+        auto K_sorted = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
 
-        sort(Indices{p, q, i, I}, &G1_pqiI, Indices{p, i, q, I}, G1_view);
-        sort(Indices{p, q, i, I}, &G2_pqiI, Indices{p, i, I, q}, G2_view);
+        sort(Indices{p, q, i, I}, &J_sorted, Indices{p, i, q, I}, J_view);
+        sort(Indices{p, q, i, I}, &K_sorted, Indices{p, i, I, q}, K_view);
 
-        einsum(1.0, Indices{p, q}, &(*f), 2.0, Indices{p, q, i, I}, G1_pqiI, Indices{i, I}, Id);
-        einsum(Indices{p, q}, &(*k), Indices{p, q, i, I}, G2_pqiI, Indices{i, I}, Id);
+        einsum(1.0, Indices{p, q}, &(*f), 2.0, Indices{p, q, i, I}, J_sorted, Indices{i, I}, Id);
+        einsum(Indices{p, q}, &(*k), Indices{p, q, i, I}, K_sorted, Indices{i, I}, Id);
+    }
+
+    (*fk) = (*f)(All, All);
+    tensor_algebra::element([](double const &val1, double const &val2)
+                            -> double { return val1 - val2; },
+                            &(*f), *k);
+}
+
+void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
+                       einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
+                       einsums::Tensor<double, 3> *Metric)
+{
+    using namespace einsums;
+    using namespace tensor_algebra;
+    using namespace tensor_algebra::index;
+
+    (*f) = (*h)(All, All);
+    {
+        auto Oper = std::make_unique<Tensor<double, 3>>("(B|PQ) MO", naux_, nobs_, nri_);
+        form_oper_ints("G", Oper.get());
+
+        {
+            Tensor Id = create_identity_tensor("I", nocc_, nocc_);
+            Tensor J_Metric = (*Metric)(Range{0, naux_}, Range{0, nri_}, Range{0, nri_});
+            Tensor J_Oper = (*Oper)(Range{0, naux_}, Range{0, nocc_}, Range{0, nocc_});
+
+            Tensor<double, 1> tmp{"B", naux_};
+            einsum(Indices{B}, &tmp, Indices{B, i, j}, J_Oper, Indices{i, j}, Id);
+            einsum(1.0, Indices{P, Q}, &(*f), 2.0, Indices{B, P, Q}, J_Metric, Indices{B}, tmp);
+        }
+
+        {
+            Tensor K_Metric = (*Metric)(Range{0, naux_}, Range{0, nri_}, Range{0, nocc_});
+            Tensor K_Oper = (*Oper)(Range{0, naux_}, Range{0, nocc_}, Range{0, nri_});
+
+            Tensor<double, 3> tmp{"", naux_, nocc_, nri_};
+            sort(Indices{B, i, P}, &tmp, Indices{B, P, i}, K_Metric);
+            einsum(Indices{P, Q}, &(*k), Indices{B, i, P}, tmp, Indices{B, i, Q}, K_Oper);
+        }
     }
 
     (*fk) = (*f)(All, All);
