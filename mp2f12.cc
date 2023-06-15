@@ -287,13 +287,21 @@ double MP2F12::compute_energy()
     /* Form the two-electron integrals */
     std::vector<std::string> teint = {"FG","Uf","G","F","F2"};
 
-    auto G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nri_, nobs_, nri_, nri_);
+    // Two-Electron Integrals
+    auto G = std::make_unique<Tensor<double, 4>>("MO G Tensor", 0, 0, 0, 0);
     auto F = std::make_unique<Tensor<double, 4>>("MO F12 Tensor", nobs_, nobs_, nri_, nri_);
     auto F2 = std::make_unique<Tensor<double, 4>>("MO F12_Squared Tensor", nobs_, nobs_, nobs_, nri_);
     auto FG = std::make_unique<Tensor<double, 4>>("MO F12G12 Tensor", nobs_, nobs_, nobs_, nobs_);
     auto Uf = std::make_unique<Tensor<double, 4>>("MO F12_DoubleCommutator Tensor", nobs_, nobs_, nobs_, nobs_);
 
+    // Fock Matrices
+    auto f = std::make_unique<Tensor<double, 2>>("Fock Matrix", nri_, nri_);
+    auto k = std::make_unique<Tensor<double, 2>>("Exchange MO Integral", nri_, nri_);
+    auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri_, nri_);
+
     if (f12_type_ == "DF") {
+        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nobs_, nobs_, nri_, nri_);
+
         // [J_AB]^{-1}(B|PQ)
         auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nri_, nri_);
         form_metric_ints(Metric.get());
@@ -326,7 +334,15 @@ double MP2F12::compute_energy()
                 timer_off("G Integral");
             }
         }
+
+        outfile->Printf("   Fock Matrix\n");
+        timer_on("Fock Matrix");
+        form_df_fock(f.get(), k.get(), fk.get(), h.get(), Metric.get());
+        timer_off("Fock Matrix");
+        h.reset();
     } else {
+        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nri_, nobs_, nri_, nri_);
+
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
                 outfile->Printf("   F Integral\n");
@@ -355,13 +371,16 @@ double MP2F12::compute_energy()
                 timer_off("G Integral");
             }
         }
+
+        outfile->Printf("   Fock Matrix\n");
+        timer_on("Fock Matrix");
+        form_fock(f.get(), k.get(), fk.get(), h.get(), G.get());
+        timer_off("Fock Matrix");
+        h.reset();
     }
 
     /* Form the F12 Matrices */
     outfile->Printf("\n ===> Forming the F12 Intermediate Tensors <===\n");
-    auto f = std::make_unique<Tensor<double, 2>>("Fock Matrix", nri_, nri_);
-    auto k = std::make_unique<Tensor<double, 2>>("Exchange MO Integral", nri_, nri_);
-    auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri_, nri_);
     auto V = std::make_unique<Tensor<double, 4>>("V Intermediate Tensor", nocc_, nocc_, nocc_, nocc_);
     auto X = std::make_unique<Tensor<double, 4>>("X Intermediate Tensor", nocc_, nocc_, nocc_, nocc_);
     auto C = std::make_unique<Tensor<double, 4>>("C Intermediate Tensor", nocc_, nocc_, nobs_ - nocc_, nobs_ - nocc_);
@@ -378,12 +397,6 @@ double MP2F12::compute_energy()
     timer_on("X Intermediate");
     form_V_or_X(X.get(), F.get(), F.get(), F2.get());
     timer_off("X Intermediate");
-
-    outfile->Printf("   Fock Matrix\n");
-    timer_on("Fock Matrix");
-    form_fock(f.get(), k.get(), fk.get(), h.get(), G.get());
-    timer_off("Fock Matrix");
-    h.reset();
 
     outfile->Printf("   C Intermediate\n");
     timer_on("C Intermediate");
