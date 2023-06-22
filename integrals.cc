@@ -500,7 +500,7 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
                 ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
             }
 
-#pragma omp parallel for schedule(guided) num_threads(nthreads_)
+#pragma omp parallel for collapse(3) schedule(guided) num_threads(nthreads_)
             for (size_t B = 0; B < DFBS_->nshell(); B++) {
                 for (size_t P = 0; P < bs1->nshell(); P++) {
                     for (size_t Q = 0; Q < bs2->nshell(); Q++) {
@@ -599,7 +599,7 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
         ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
     }
 
-#pragma omp parallel for schedule(guided) num_threads(nthreads_)
+#pragma omp parallel for collapse(2) schedule(guided) num_threads(nthreads_)
     for (size_t A = 0; A < DFBS_->nshell(); A++) {
         for (size_t B = 0; B < DFBS_->nshell(); B++) {
             size_t rank = 0;

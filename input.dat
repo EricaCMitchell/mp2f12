@@ -23,6 +23,7 @@ set {
   MAXITER 150
   E_CONVERGENCE 1.e-10
   D_CONVERGENCE 1.e-10
+  SCREENING none
 }
 
 set mp2f12 {
@@ -32,5 +33,4 @@ set mp2f12 {
   CABS_SINGLES true
 }
 
-set_num_threads(4)
 energy('mp2f12')

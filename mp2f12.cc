@@ -149,7 +149,7 @@ void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f
     using namespace einsums;
     using namespace tensor_algebra;
 
-    #pragma omp parallel for collapse(4) num_threads(nthreads_)
+#pragma omp parallel for collapse(4) num_threads(nthreads_)
     for (size_t i = 0; i < nocc_; i++) {
         for (size_t j = 0; j < nocc_; j++) {
             for (size_t a = nocc_; a < nobs_; a++) {
@@ -192,7 +192,7 @@ void MP2F12::form_cabs_singles(einsums::Tensor<double,2> *f)
     }
 
     double E_s = 0.0;
-    #pragma omp parallel for collapse(2) num_threads(nthreads_) reduction(+:E_s)
+#pragma omp parallel for collapse(2) num_threads(nthreads_) reduction(+:E_s)
     for (size_t A = 0; A < all_vir; A++) {
         for (size_t i = 0; i < nocc_; i++) {
             E_s += 2 * pow(f_iA(i, A), 2) / (e_ij(i) - e_AB(A));
@@ -221,9 +221,7 @@ void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<doubl
     outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
                     "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
     outfile->Printf(" ----------------------------------------------------------------------\n");
-    #pragma omp parallel for ordered num_threads(nthreads_) reduction(+:E_f12_s, E_f12_t)
     for (size_t i = nfrzn_; i < nocc_; i++) {
-        #pragma omp ordered
         for (size_t j = i; j < nocc_; j++) {
             // Allocations
             Tensor<double, 4> X_{"Scaled X", nocc_, nocc_, nocc_, nocc_};
@@ -276,7 +274,6 @@ double MP2F12::compute_energy()
     timer_off("OBS and CABS");
 
     outfile->Printf("\n ===> Forming the Integrals <===\n");
-    options_.set_global_str("SCREENING", "NONE");
 
     /* Form the one-electron integrals */
     auto h = std::make_unique<Tensor<double, 2>>("MO One-Electron Integrals", nri_, nri_);
