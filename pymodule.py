@@ -54,7 +54,7 @@ def run_mp2f12(name, **kwargs):
         psi4.core.set_global_option("SCF_TYPE", "DF")
         psi4.core.set_local_option("SCF", "DF_BASIS_SCF", dfbs)
         psi4.core.set_global_option("MP2_TYPE", "DF")
-        psi4.core.set_local_option("MP2", "DF_BASIS_MP2", dfbs)
+        psi4.core.set_local_option("DFMP2", "DF_BASIS_MP2", dfbs)
 
     # Compute a MP2 reference, a wavefunction is return which holds the molecule used, orbitals
     # Fock matrices, and more
