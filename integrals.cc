@@ -101,13 +101,17 @@ void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
 
     outfile->Printf("   One-Electron Integrals\n");
 
-    std::vector<int> order = {0, 0, 1, 
-                              0, 1, 1};
+    std::vector<char> order = {'O', 'O',
+                               'O', 'C',
+                               'C', 'C'};
 
-    int nmo1, nmo2, M, N;
-    for (int i = 0; i < 3; i++) {
-        (  order[i] == 1  ) ? (nmo1 = ncabs_, M = nobs_) : (nmo1 = nobs_, M = 0);
-        ( order[i+3] == 1 ) ? (nmo2 = ncabs_, N = nobs_) : (nmo2 = nobs_, N = 0);
+    int nmo1, nmo2, M, N, o1, o2;
+    for (int idx = 0; idx < (order.size()/2); idx++) {
+        int i = idx * 2;
+        ( order[i]  == 'C') ? o1 = 1 : o1 = 0;
+        (order[i+1] == 'C') ? o2 = 1 : o2 = 0;
+        (o1 == 1) ? (nmo1 = ncabs_, M = nobs_) : (nmo1 = nobs_, M = 0);
+        (o2 == 1) ? (nmo2 = ncabs_, N = nobs_) : (nmo2 = nobs_, N = 0);
 
         auto mints = reference_wavefunction_->mintshelper();
 
@@ -115,10 +119,10 @@ void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
         auto t_mo = std::make_shared<Matrix>("MO-based T Integral", nmo1, nmo2);
         auto v_mo = std::make_shared<Matrix>("MO-based V Integral", nmo1, nmo2);
         {
-            auto bs1 = bs_[ order[i] ].basisset();
-            auto bs2 = bs_[order[i+3]].basisset();
-            auto C1 = bs_[ order[i] ].C();
-            auto C2 = bs_[order[i+3]].C();
+            auto bs1 = bs_[o1].basisset();
+            auto bs2 = bs_[o2].basisset();
+            auto C1 = bs_[o1].C();
+            auto C2 = bs_[o2].C();
             auto t_ao = mints->ao_kinetic(bs1, bs2);
             auto v_ao = mints->ao_potential(bs1, bs2);
             t_mo->transform(C1, t_ao, C2);
@@ -137,7 +141,7 @@ void MP2F12::form_oeints(einsums::Tensor<double, 2> *h)
                 }
             }
 
-            if ( order[i] != order[i+3] ) {
+            if ( o1 != o2 ) {
                 TensorView<double, 2> h_nm{*h, Dim<2>{nmo2, nmo1}, Offset<2>{N, M}};
 #pragma omp parallel for collapse(2) num_threads(nthreads_)
                 for (int n = 0; n < nmo2; n++) {
@@ -157,7 +161,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
     using namespace tensor_algebra::index;
 
     // In <PQ|RS> ordering
-    std::vector<int> order = {'o', 'o', 'o', 'o'};
+    std::vector<char> order = {'o', 'o', 'o', 'o'};
     if ( int_type == "F" ) {
         order = {'o', 'o', 'O', 'O',
                  'o', 'o', 'O', 'C',
@@ -347,7 +351,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
     } // end of for loop
 }
 
-void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
+void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI, bool is_fock)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -355,10 +359,17 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
 
     std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
 
-    std::vector<int> order = {'O', 'O',
-                              'O', 'C',
-                              'C', 'O',
-                              'C', 'C'};
+    std::vector<char> order;
+
+    if (is_fock) {
+        order = {'O', 'O',
+                 'O', 'C',
+                 'C', 'O',
+                 'C', 'C'};
+    } else {
+        order = {'o', 'O',
+                 'o', 'C'};
+    }
     
     int nmo1, nmo2, R, S, o1, o2;
     for (int idx = 0; idx < (order.size()/2); idx++) {
@@ -412,8 +423,8 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
             }
         }
 
-        ( order[i] == 'C' ) ? nmo1 = ncabs_ : nmo1 = nobs_;
-        (order[i+1] == 'C') ? nmo2 = ncabs_ : nmo2 = nobs_;
+        ( order[i] == 'C' ) ? nmo1 = ncabs_ : ( order[i] == 'O' ) ? nmo1 = nobs_ : nmo1 = nocc_;
+        (order[i+1] == 'C') ? nmo2 = ncabs_ : (order[i+1] == 'O') ? nmo2 = nobs_ : nmo2 = nocc_;
 
         auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
         auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
@@ -474,7 +485,7 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
 
     std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
 
-    std::vector<int> order = {'o', 'o'};
+    std::vector<char> order = {'o', 'o'};
     if ( int_type != "Uf" || int_type != "FG" ) {
         order = {'o', 'O',
                  'o', 'C'};

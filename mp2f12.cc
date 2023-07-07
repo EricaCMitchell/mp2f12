@@ -298,12 +298,12 @@ double MP2F12::compute_energy()
 
     if (f12_type_ == "DF") {
         // [J_AB]^{-1}(B|PQ)
-        auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nri_, nri_);
-        form_metric_ints(Metric.get());
+        auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nocc_, nri_);
+        form_metric_ints(Metric.get(), false);
 
         outfile->Printf("   Fock Matrix\n");
         timer_on("Fock Matrix");
-        form_df_fock(f.get(), k.get(), fk.get(), h.get(), Metric.get());
+        form_df_fock(f.get(), k.get(), fk.get(), h.get());
         timer_off("Fock Matrix");
         h.reset();
 

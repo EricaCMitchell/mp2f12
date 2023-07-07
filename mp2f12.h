@@ -136,8 +136,7 @@ class MP2F12 : public Wavefunction {
 
     /* Form the DF Fock matrix */
     void form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
-                      einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
-                      einsums::Tensor<double, 3> *Metric);
+                      einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h);
 
     /* Form the $V^{ij}_{kl}$ or $X^{ij}_{kl}$ tensor */
     void form_V_or_X(einsums::Tensor<double, 4> *VX, einsums::Tensor<double, 4> *F,
@@ -178,7 +177,7 @@ class MP2F12 : public Wavefunction {
     void set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<double, 3> *Slice);
 
     /* Form the integrals containing the DF metric [J_AB]^{-1}(B|PQ) */
-    void form_metric_ints(einsums::Tensor<double, 3> *DF_ERI);
+    void form_metric_ints(einsums::Tensor<double, 3> *DF_ERI, bool is_fock);
     
     /* Form the integrals containing the explicit correlation (B|\hat{A}_{12}|PQ) */
     void form_oper_ints(const std::string& int_type, einsums::Tensor<double, 3> *DF_ERI);

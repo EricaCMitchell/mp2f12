@@ -75,8 +75,7 @@ void MP2F12::form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2>
 }
 
 void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
-                       einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
-                       einsums::Tensor<double, 3> *Metric)
+                       einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -84,6 +83,8 @@ void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double,
 
     (*f) = (*h)(All, All);
     {
+        auto Metric = std::make_unique<Tensor<double, 3>>("(B|PQ) MO", naux_, nri_, nri_);
+        form_metric_ints(Metric.get(), true);
         auto Oper = std::make_unique<Tensor<double, 3>>("(B|PQ) MO", naux_, nocc_, nri_);
         form_oper_ints("G", Oper.get());
 
