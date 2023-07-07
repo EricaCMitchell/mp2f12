@@ -285,7 +285,7 @@ double MP2F12::compute_energy()
     std::vector<std::string> teint = {"FG","Uf","G","F","F2"};
 
     // Two-Electron Integrals
-    auto G = std::make_unique<Tensor<double, 4>>("MO G Tensor", 0, 0, 0, 0);
+    auto G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nocc_, nocc_, nobs_, nri_);
     auto F = std::make_unique<Tensor<double, 4>>("MO F12 Tensor", nocc_, nocc_, nri_, nri_);
     auto F2 = std::make_unique<Tensor<double, 4>>("MO F12_Squared Tensor", nocc_, nocc_, nocc_, nri_);
     auto FG = std::make_unique<Tensor<double, 4>>("MO F12G12 Tensor", nocc_, nocc_, nocc_, nocc_);
@@ -297,11 +297,15 @@ double MP2F12::compute_energy()
     auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri_, nri_);
 
     if (f12_type_ == "DF") {
-        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nocc_, nocc_, nobs_, nri_);
-
         // [J_AB]^{-1}(B|PQ)
         auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nri_, nri_);
         form_metric_ints(Metric.get());
+
+        outfile->Printf("   Fock Matrix\n");
+        timer_on("Fock Matrix");
+        form_df_fock(f.get(), k.get(), fk.get(), h.get(), Metric.get());
+        timer_off("Fock Matrix");
+        h.reset();
 
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
@@ -331,14 +335,12 @@ double MP2F12::compute_energy()
                 timer_off("G Integral");
             }
         }
-
+    } else {
         outfile->Printf("   Fock Matrix\n");
         timer_on("Fock Matrix");
-        form_df_fock(f.get(), k.get(), fk.get(), h.get(), Metric.get());
+        form_fock(f.get(), k.get(), fk.get(), h.get());
         timer_off("Fock Matrix");
         h.reset();
-    } else {
-        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nri_, nobs_, nri_, nri_);
 
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
@@ -368,12 +370,6 @@ double MP2F12::compute_energy()
                 timer_off("G Integral");
             }
         }
-
-        outfile->Printf("   Fock Matrix\n");
-        timer_on("Fock Matrix");
-        form_fock(f.get(), k.get(), fk.get(), h.get(), G.get());
-        timer_off("Fock Matrix");
-        h.reset();
     }
 
     /* Form the F12 Matrices */

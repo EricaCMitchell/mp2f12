@@ -132,8 +132,7 @@ class MP2F12 : public Wavefunction {
     
     /* Form the Fock matrix */
     void form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
-                   einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
-                   einsums::Tensor<double, 4> *G);
+                   einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h);
 
     /* Form the DF Fock matrix */
     void form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 

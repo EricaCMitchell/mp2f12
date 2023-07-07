@@ -30,6 +30,8 @@
 
 #include "mp2f12.h"
 
+#include <psi4/libpsi4util/PsiOutStream.h>
+
 #include "einsums/LinearAlgebra.hpp"
 #include "einsums/Sort.hpp"
 #include "einsums/Tensor.hpp"
@@ -38,25 +40,31 @@
 namespace psi { namespace mp2f12 {
 
 void MP2F12::form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
-                       einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h,
-                       einsums::Tensor<double, 4> *G)
+                       einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h)
 {
     using namespace einsums;
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
     (*f) = (*h)(All, All);
+    Tensor Id = create_identity_tensor("I", nocc_, nocc_);
     {
-        Tensor Id = create_identity_tensor("I", nocc_, nocc_);
-        TensorView<double, 4> J_view{(*G), Dim<4>{nri_, nocc_, nri_, nocc_}};
-        TensorView<double, 4> K_view{(*G), Dim<4>{nri_, nocc_, nocc_, nri_}};
-        auto J_sorted = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
-        auto K_sorted = std::make_unique<Tensor<double, 4>>("pqiI", nri_, nri_, nocc_, nocc_);
+        outfile->Printf("   \tForming J\n");
+        Tensor<double, 4> J{"Coulomb", nri_, nocc_, nri_, nocc_};
+        form_teints("J", &J);
 
-        sort(Indices{p, q, i, I}, &J_sorted, Indices{p, i, q, I}, J_view);
-        sort(Indices{p, q, i, I}, &K_sorted, Indices{p, i, I, q}, K_view);
-
+        Tensor<double, 4> J_sorted{"pqiI", nri_, nri_, nocc_, nocc_};
+        sort(Indices{p, q, i, I}, &J_sorted, Indices{p, i, q, I}, J);
         einsum(1.0, Indices{p, q}, &(*f), 2.0, Indices{p, q, i, I}, J_sorted, Indices{i, I}, Id);
+    }
+
+    {
+        outfile->Printf("   \tForming K\n");
+        Tensor<double, 4> K{"Exhange", nri_, nocc_, nocc_, nri_};
+        form_teints("K", &K);
+
+        Tensor<double, 4> K_sorted{"pqiI", nri_, nri_, nocc_, nocc_};
+        sort(Indices{p, q, i, I}, &K_sorted, Indices{p, i, I, q}, K);
         einsum(Indices{p, q}, &(*k), Indices{p, q, i, I}, K_sorted, Indices{i, I}, Id);
     }
 
@@ -80,6 +88,7 @@ void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double,
         form_oper_ints("G", Oper.get());
 
         {
+            outfile->Printf("   \tForming J\n");
             Tensor Id = create_identity_tensor("I", nocc_, nocc_);
             Tensor J_Metric = (*Metric)(Range{0, naux_}, Range{0, nri_}, Range{0, nri_});
             Tensor J_Oper = (*Oper)(Range{0, naux_}, Range{0, nocc_}, Range{0, nocc_});
@@ -90,6 +99,7 @@ void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double,
         }
 
         {
+            outfile->Printf("   \tForming K\n");
             Tensor K_Metric = (*Metric)(Range{0, naux_}, Range{0, nri_}, Range{0, nocc_});
             Tensor K_Oper = (*Oper)(Range{0, naux_}, Range{0, nocc_}, Range{0, nri_});
 

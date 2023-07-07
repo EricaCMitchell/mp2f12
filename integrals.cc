@@ -156,29 +156,41 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    std::vector<int> order = {0, 0, 0, 0};
-    if ( int_type == "F" ){
-        order = {0, 0, 0, 0,
-                 0, 0, 0, 1,
-                 0, 0, 1, 1};
-    } else if ( int_type == "F2" ){
-        order = {0, 0, 0, 0,
-                 0, 0, 0, 1};
-    } else if ( int_type == "G" ){ 
-        order = {0, 0, 0, 0,
-                 0, 0, 0, 1,
-                 1, 0, 0, 1,
-                 1, 0, 1, 0}; 
+    // In <PQ|RS> ordering
+    std::vector<int> order = {'o', 'o', 'o', 'o'};
+    if ( int_type == "F" ) {
+        order = {'o', 'o', 'O', 'O',
+                 'o', 'o', 'O', 'C',
+                 'o', 'o', 'C', 'C'};
+    } else if ( int_type == "F2" ) {
+        order = {'o', 'o', 'o', 'O',
+                 'o', 'o', 'o', 'C'};
+    } else if ( int_type == "G" ) {
+        order = {'o', 'o', 'O', 'O',
+                 'o', 'o', 'O', 'C'};
+    } else if ( int_type == "J" ) {
+        order = {'O', 'o', 'O', 'o',
+                 'O', 'o', 'C', 'o',
+                 'C', 'o', 'C', 'o'};
+    } else if ( int_type == "K" ) {
+        order = {'O', 'o', 'o', 'O',
+                 'O', 'o', 'o', 'C',
+                 'C', 'o', 'o', 'C'};
     }
 
     int nmo1, nmo2, nmo3, nmo4;
     int I, J, K, L;
+    int o1, o2, o3, o4;
     for (int idx = 0; idx < (order.size()/4); idx++) {
         int i = idx * 4;
-        auto bs1 = bs_[ order[i] ].basisset();
-        auto bs2 = bs_[order[i+1]].basisset();
-        auto bs3 = bs_[order[i+2]].basisset();
-        auto bs4 = bs_[order[i+3]].basisset();
+        ( order[i]  == 'C') ? o1 = 1 : o1 = 0;
+        (order[i+1] == 'C') ? o2 = 1 : o2 = 0;
+        (order[i+2] == 'C') ? o3 = 1 : o3 = 0;
+        (order[i+3] == 'C') ? o4 = 1 : o4 = 0;
+        auto bs1 = bs_[o1].basisset();
+        auto bs2 = bs_[o2].basisset();
+        auto bs3 = bs_[o3].basisset();
+        auto bs4 = bs_[o4].basisset();
         auto nbf1 = bs1->nbf();
         auto nbf2 = bs2->nbf();
         auto nbf3 = bs3->nbf();
@@ -248,20 +260,20 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
         }
 	
         // Convert all Psi4 C Matrices to einsums Tensor<double, 2>
-        ( order[i] == 1 ) ? nmo1 = ncabs_ : nmo1 = nobs_;
-        (order[i+1] == 1) ? nmo2 = ncabs_ : nmo2 = nobs_;
-        (order[i+2] == 1) ? nmo3 = ncabs_ : nmo3 = nobs_;
-        (order[i+3] == 1) ? nmo4 = ncabs_ : nmo4 = nobs_;
+        ( order[i] == 'C' ) ? nmo1 = ncabs_ : ( order[i] == 'O' ) ? nmo1 = nobs_ : nmo1 = nocc_;
+        (order[i+1] == 'C') ? nmo2 = ncabs_ : (order[i+1] == 'O') ? nmo2 = nobs_ : nmo2 = nocc_;
+        (order[i+2] == 'C') ? nmo3 = ncabs_ : (order[i+2] == 'O') ? nmo3 = nobs_ : nmo3 = nocc_;
+        (order[i+3] == 'C') ? nmo4 = ncabs_ : (order[i+3] == 'O') ? nmo4 = nobs_ : nmo4 = nocc_;
 
         auto C1 = std::make_unique<Tensor<double, 2>>("C1", nbf1, nmo1);
         auto C2 = std::make_unique<Tensor<double, 2>>("C2", nbf2, nmo2);
         auto C3 = std::make_unique<Tensor<double, 2>>("C3", nbf3, nmo3);
         auto C4 = std::make_unique<Tensor<double, 2>>("C4", nbf4, nmo4);
         {
-            convert_C(C1.get(), bs_[ order[i] ], nbf1, nmo1);
-            convert_C(C2.get(), bs_[order[i+1]], nbf2, nmo2);
-            convert_C(C3.get(), bs_[order[i+2]], nbf3, nmo3);
-            convert_C(C4.get(), bs_[order[i+3]], nbf4, nmo4);
+            convert_C(C1.get(), bs_[o1], nbf1, nmo1);
+            convert_C(C2.get(), bs_[o2], nbf2, nmo2);
+            convert_C(C3.get(), bs_[o3], nbf3, nmo3);
+            convert_C(C4.get(), bs_[o4], nbf4, nmo4);
         }
 	
         // Transform ERI AO Tensor to ERI MO Tensor
@@ -297,7 +309,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
             PQRs.reset();
             C4.reset();
 
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
+            if (nbf3 != nbf1 && nbf3 != nbf2 && nbf3 != nbf4 && int_type == "J") {
                 RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", nmo3, nmo4, nmo1, nmo2);
                 sort(Indices{R, index::S, P, Q}, &RSPQ, Indices{P, Q, R, index::S}, PQRS);
             }
@@ -305,30 +317,33 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
 
         // Stitch into ERI Tensor
         {
-            ( order[i] == 1 ) ? I = nobs_ : I = 0;
-            (order[i+1] == 1) ? J = nobs_ : J = 0;
-            (order[i+2] == 1) ? K = nobs_ : K = 0;
-            (order[i+3] == 1) ? L = nobs_ : L = 0;
+            (o1 == 1) ? I = nobs_ : I = 0;
+            (o2 == 1) ? J = nobs_ : J = 0;
+            (o3 == 1) ? K = nobs_ : K = 0;
+            (o4 == 1) ? L = nobs_ : L = 0;
 
             TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{I, J, K, L}};
             set_ERI(ERI_PQRS, PQRS.get());
 
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type != "F2") {
+            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "F") {
                 Tensor<double, 4> QPSR{"QPSR", nmo2, nmo1, nmo4, nmo3};
-                sort(Indices{Q, P, index::S, R}, &QPSR, Indices{R, index::S, P, Q}, RSPQ);
+                sort(Indices{Q, P, index::S, R}, &QPSR, Indices{P, Q, R, index::S}, PQRS);
                 TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
                 set_ERI(ERI_QPSR, &QPSR);
             } // end of if statement
 
-            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "G") {
+            if (nbf3 != nbf1 && nbf3 != nbf2 && nbf3 != nbf4 && int_type == "J") {
+                TensorView<double, 4> ERI_RSPQ{*ERI, Dim<4>{nmo3, nmo4, nmo1, nmo2}, Offset<4>{K, L, I, J}};
+                set_ERI(ERI_RSPQ, &(*RSPQ));
+            } // end of if statement
+
+            if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "K") {
                 Tensor<double, 4> SRQP{"SRQP", nmo4, nmo3, nmo2, nmo1};
                 sort(Indices{index::S, R, Q, P}, &SRQP, Indices{P, Q, R, index::S}, PQRS);
                 TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
                 set_ERI(ERI_SRQP, &SRQP);
             } // end of if statement
         }
-        RSPQ.reset(nullptr);
-        PQRS.reset(nullptr);
     } // end of for loop
 }
 
@@ -448,7 +463,6 @@ void MP2F12::form_metric_ints(einsums::Tensor<double, 3> *DF_ERI)
             TensorView<double, 3> ERI_APQ{*DF_ERI, Dim<3>{naux_, nmo1, nmo2}, Offset<3>{0, R, S}};
             set_ERI(ERI_APQ, APQ.get());
         }
-        APQ.reset();
     } // end of for loop
 }
 
@@ -461,7 +475,7 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
     std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
 
     std::vector<int> order = {'o', 'o'};
-    if ( int_type != "Uf" || int_type != "FG" ){
+    if ( int_type != "Uf" || int_type != "FG" ) {
         order = {'o', 'O',
                  'o', 'C'};
     }
@@ -566,7 +580,6 @@ void MP2F12::form_oper_ints(const std::string& int_type, einsums::Tensor<double,
             TensorView<double, 3> ERI_BPQ{*DF_ERI, Dim<3>{naux_, nmo1, nmo2}, Offset<3>{0, R, S}};
             set_ERI(ERI_BPQ, BPQ.get());
         }
-        BPQ.reset();
     } // end of for loop
 }
 
@@ -638,7 +651,7 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
 
     // In (PQ|RS) ordering
     std::vector<char> order = {'o', 'o', 'o', 'o'};
-    if ( int_type == "G" ){
+    if ( int_type == "G" ) {
         order = {'o', 'O', 'o', 'O',
                  'o', 'O', 'o', 'C'};
     } else if ( int_type == "F" ) {
@@ -646,7 +659,7 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
                  'o', 'O', 'o', 'C',
                  'o', 'C', 'o', 'O',
                  'o', 'C', 'o', 'C',};
-    } else if ( int_type == "F2" ){
+    } else if ( int_type == "F2" ) {
         order = {'o', 'o', 'o', 'O',
                  'o', 'o', 'o', 'C',};
     }
