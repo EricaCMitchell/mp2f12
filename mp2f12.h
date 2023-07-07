@@ -173,7 +173,7 @@ class MP2F12 : public Wavefunction {
                                       einsums::TensorView<double, 2>& D_ij, 
                                       const int& i, const int& j);
 
-    void convert_C(einsums::Tensor<double,2> *C, OrbitalSpace bs);
+    void convert_C(einsums::Tensor<double,2> *C, OrbitalSpace bs, const int& dim1, const int& dim2);
 
     void set_ERI(einsums::TensorView<double, 4>& ERI_Slice, einsums::Tensor<double, 4> *Slice);
     void set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<double, 3> *Slice);

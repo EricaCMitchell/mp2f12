@@ -76,7 +76,7 @@ void MP2F12::form_df_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double,
 
     (*f) = (*h)(All, All);
     {
-        auto Oper = std::make_unique<Tensor<double, 3>>("(B|PQ) MO", naux_, nobs_, nri_);
+        auto Oper = std::make_unique<Tensor<double, 3>>("(B|PQ) MO", naux_, nocc_, nri_);
         form_oper_ints("G", Oper.get());
 
         {
@@ -115,15 +115,12 @@ void MP2F12::form_V_or_X(einsums::Tensor<double, 4> *VX, einsums::Tensor<double,
     (*VX) = (*FG_F2)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
 
     {
-        Tensor F_ooco = (*F)(Range{0, nocc_}, Range{0, nocc_}, Range{nobs_, nri_}, Range{0, nocc_});
-        Tensor G_F_ooco = (*G_F)(Range{0, nocc_}, Range{0, nocc_}, Range{nobs_, nri_}, Range{0, nocc_});
-        einsum(1.0, Indices{i, j, k, l}, &(*VX), -1.0, Indices{i, j, p, n}, G_F_ooco, Indices{k, l, p, n}, F_ooco);
-    }
-
-    {
         Tensor F_oooc = (*F)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{nobs_, nri_});
         Tensor G_F_oooc = (*G_F)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{nobs_, nri_});
-        einsum(1.0, Indices{i, j, k, l}, &(*VX), -1.0, Indices{i, j, m, q}, G_F_oooc, Indices{k, l, m, q}, F_oooc);
+        Tensor<double, 4> tmp{"Temp", nocc_, nocc_, nocc_, nocc_};
+        einsum(Indices{i, j, k, l}, &tmp, Indices{i, j, m, q}, G_F_oooc, Indices{k, l, m, q}, F_oooc);
+        sort(1.0, Indices{i, j, k, l}, &(*VX), -1.0, Indices{i, j, k, l}, tmp);
+        sort(1.0, Indices{i, j, k, l}, &(*VX), -1.0, Indices{j, i, l, k}, tmp);
     }
 
     {

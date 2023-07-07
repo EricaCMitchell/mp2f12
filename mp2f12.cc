@@ -286,10 +286,10 @@ double MP2F12::compute_energy()
 
     // Two-Electron Integrals
     auto G = std::make_unique<Tensor<double, 4>>("MO G Tensor", 0, 0, 0, 0);
-    auto F = std::make_unique<Tensor<double, 4>>("MO F12 Tensor", nobs_, nobs_, nri_, nri_);
-    auto F2 = std::make_unique<Tensor<double, 4>>("MO F12_Squared Tensor", nobs_, nobs_, nobs_, nri_);
-    auto FG = std::make_unique<Tensor<double, 4>>("MO F12G12 Tensor", nobs_, nobs_, nobs_, nobs_);
-    auto Uf = std::make_unique<Tensor<double, 4>>("MO F12_DoubleCommutator Tensor", nobs_, nobs_, nobs_, nobs_);
+    auto F = std::make_unique<Tensor<double, 4>>("MO F12 Tensor", nocc_, nocc_, nri_, nri_);
+    auto F2 = std::make_unique<Tensor<double, 4>>("MO F12_Squared Tensor", nocc_, nocc_, nocc_, nri_);
+    auto FG = std::make_unique<Tensor<double, 4>>("MO F12G12 Tensor", nocc_, nocc_, nocc_, nocc_);
+    auto Uf = std::make_unique<Tensor<double, 4>>("MO F12_DoubleCommutator Tensor", nocc_, nocc_, nocc_, nocc_);
 
     // Fock Matrices
     auto f = std::make_unique<Tensor<double, 2>>("Fock Matrix", nri_, nri_);
@@ -297,7 +297,7 @@ double MP2F12::compute_energy()
     auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri_, nri_);
 
     if (f12_type_ == "DF") {
-        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nobs_, nobs_, nri_, nri_);
+        G = std::make_unique<Tensor<double, 4>>("MO G Tensor", nocc_, nocc_, nobs_, nri_);
 
         // [J_AB]^{-1}(B|PQ)
         auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nri_, nri_);
