@@ -171,10 +171,21 @@ class MP2F12 : public Wavefunction {
                                       einsums::TensorView<double, 2>& D_ij, 
                                       const int& i, const int& j);
 
+    /* Converts the AO to MO matrices to einsum::Tensors */
     void convert_C(einsums::Tensor<double,2> *C, OrbitalSpace bs, const int& dim1, const int& dim2);
 
+    /* Places the computed integral in the einsum::Tensor */
     void set_ERI(einsums::TensorView<double, 4>& ERI_Slice, einsums::Tensor<double, 4> *Slice);
     void set_ERI(einsums::TensorView<double, 3>& ERI_Slice, einsums::Tensor<double, 3> *Slice);
+
+    /* Computes the conventional two-body integrals */
+    void two_body_ao_computer(const std::string& int_type, einsums::Tensor<double, 4> *GAO,
+                              std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2,
+                              std::shared_ptr<BasisSet> bs3, std::shared_ptr<BasisSet> bs4);
+
+    /* Computes the DF three-index integrals */
+    void three_index_ao_computer(const std::string& int_type, einsums::Tensor<double, 3> *Bpq,
+                                 std::shared_ptr<BasisSet> bs1, std::shared_ptr<BasisSet> bs2);
 
     /* Form the integrals containing the DF metric [J_AB]^{-1}(B|PQ) */
     void form_metric_ints(einsums::Tensor<double, 3> *DF_ERI, bool is_fock);
