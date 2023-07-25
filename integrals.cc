@@ -343,7 +343,6 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
 	
         // Transform ERI AO Tensor to ERI MO Tensor
         auto PQRS = std::make_unique<Tensor<double, 4>>("PQRS", nmo1, nmo2, nmo3, nmo4);
-        auto RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", 0, 0, 0, 0);
         {
             // C1
             auto Pqrs = std::make_unique<Tensor<double, 4>>("Pqrs", nmo1, nbf2, nbf3, nbf4);
@@ -373,11 +372,6 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
             einsum(Indices{P, Q, R, index::S}, &PQRS, Indices{P, Q, R, s}, PQRs, Indices{s, index::S}, C4);
             PQRs.reset();
             C4.reset();
-
-            if (nbf3 != nbf1 && nbf3 != nbf2 && nbf3 != nbf4 && int_type == "J") {
-                RSPQ = std::make_unique<Tensor<double, 4>>("RSPQ", nmo3, nmo4, nmo1, nmo2);
-                sort(Indices{R, index::S, P, Q}, &RSPQ, Indices{P, Q, R, index::S}, PQRS);
-            }
         }
 
         // Stitch into ERI Tensor
@@ -398,8 +392,10 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
             } // end of if statement
 
             if (nbf3 != nbf1 && nbf3 != nbf2 && nbf3 != nbf4 && int_type == "J") {
+                Tensor<double, 4> RSPQ{"RSPQ", nmo3, nmo4, nmo1, nmo2};
+                sort(Indices{R, index::S, P, Q}, &RSPQ, Indices{P, Q, R, index::S}, PQRS);
                 TensorView<double, 4> ERI_RSPQ{*ERI, Dim<4>{nmo3, nmo4, nmo1, nmo2}, Offset<4>{K, L, I, J}};
-                set_ERI(ERI_RSPQ, &(*RSPQ));
+                set_ERI(ERI_RSPQ, &RSPQ);
             } // end of if statement
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "K") {
@@ -619,12 +615,6 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    auto ARB = std::make_unique<Tensor<double, 2>>("(A|R|B) MO", naux_, naux_);
-    form_oper_ints(int_type, ARB.get());
-
-    auto ARPQ = std::make_unique<Tensor<double, 3>>("(A|R|PQ) MO", naux_, nocc_, nri_);
-    form_oper_ints(int_type, ARPQ.get());
-
     // In (PQ|RS) ordering
     std::vector<char> order = {'o', 'o', 'o', 'o'};
     if ( int_type == "G" ) {
@@ -657,6 +647,9 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
         {
             Tensor<double, 4> chem_robust("(PQ|F12|RS) MO", nmo1, nmo2, nmo3, nmo4);
 
+            auto ARPQ = std::make_unique<Tensor<double, 3>>("(A|R|PQ) MO", naux_, nocc_, nri_);
+            form_oper_ints(int_type, ARPQ.get());
+
             // Term 1
             Tensor left_metric  = (*Metric)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
             Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
@@ -665,15 +658,22 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
             if ( int_type != "G" ) {
                 // Term 2
                 Tensor right_metric = (*Metric)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
-                Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
-                einsum(1.0, Indices{p, q, r, s}, &chem_robust,
-                       1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
+                {
+                    Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
+                    einsum(1.0, Indices{p, q, r, s}, &chem_robust,
+                           1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
+                }
 
                 // Term 3
-                Tensor<double, 3> tmp{"Temp", naux_, nmo3, nmo4};
-                einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
-                einsum(1.0, Indices{p, q, r, s}, &chem_robust,
-                       -1.0, Indices{A, p, q}, left_metric, Indices{A, r, s}, tmp);
+                {
+                    auto ARB = std::make_unique<Tensor<double, 2>>("(A|R|B) MO", naux_, naux_);
+                    form_oper_ints(int_type, ARB.get());
+
+                    Tensor<double, 3> tmp{"Temp", naux_, nmo3, nmo4};
+                    einsum(Indices{A, r, s}, &tmp, Indices{A, B}, ARB, Indices{B, r, s}, right_metric);
+                    einsum(1.0, Indices{p, q, r, s}, &chem_robust,
+                           -1.0, Indices{A, p, q}, left_metric, Indices{A, r, s}, tmp);
+                }
             }
 
             sort(Indices{p, r, q, s}, &phys_robust, Indices{p, q, r, s}, chem_robust);
