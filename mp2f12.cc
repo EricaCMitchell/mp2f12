@@ -224,17 +224,15 @@ void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<doubl
     for (size_t i = nfrzn_; i < nocc_; i++) {
         for (size_t j = i; j < nocc_; j++) {
             // Allocations
-            Tensor<double, 4> X_{"Scaled X", nocc_, nocc_, nocc_, nocc_};
-            Tensor<double, 4> B_{"B ij", nocc_, nocc_, nocc_, nocc_};
-            X_ = (*X)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
-            B_ = (*B)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
+            Tensor X_ = (*X)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
+            Tensor B_ = (*B)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
             // Building B_
             auto f_scale = (*f)(i, i) + (*f)(j, j);
             linear_algebra::scale(f_scale, &X_);
             tensor_algebra::element([](double const &Bval, double const &Xval)
                                     -> double { return Bval - Xval; }, &B_, X_);
             // Getting V_Tilde and B_Tilde
-            auto V_ = TensorView<double, 2>{(*V), Dim<2>{nocc_, nocc_}, Offset<4>{i, j, 0, 0},
+            Tensor V_ = TensorView<double, 2>{(*V), Dim<2>{nocc_, nocc_}, Offset<4>{i, j, 0, 0},
                                             Stride<2>{(*V).stride(2), (*V).stride(3)}};
             auto K_ = TensorView<double, 2>{G_, Dim<2>{nvir_, nvir_}, Offset<4>{i, j, 0, 0},
                                             Stride<2>{G_.stride(2), G_.stride(3)}};
@@ -471,7 +469,7 @@ double MP2F12::t_(const int& p, const int& q, const int& r, const int& s)
     return t_amp;
 }
 
-std::pair<double, double> MP2F12::V_Tilde(einsums::TensorView<double, 2>& V_, einsums::Tensor<double, 4> *C,
+std::pair<double, double> MP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, einsums::Tensor<double, 4> *C,
                                           einsums::TensorView<double, 2>& K_ij, einsums::TensorView<double, 2>& D_ij,
                                           const int& i, const int& j)
 {
@@ -483,23 +481,23 @@ std::pair<double, double> MP2F12::V_Tilde(einsums::TensorView<double, 2>& V_, ei
     auto V_t = 0.0;
     int kd;
 
-    auto V_ij = std::make_unique<Tensor<double, 2>>("V(i, j, :, :)", nocc_, nocc_);
-    auto KD = std::make_unique<Tensor<double, 2>>("Temp 1", nvir_, nvir_);
-    (*V_ij) = V_;
+    {
+        auto KD = std::make_unique<Tensor<double, 2>>("Temp 1", nvir_, nvir_);
+        einsum(Indices{a, b}, &KD, Indices{a, b}, K_ij, Indices{a, b}, D_ij);
+        einsum(1.0, Indices{k, l}, &V_ij, -1.0, Indices{k, l, a, b}, *C, Indices{a, b}, KD);
+    }
 
-    einsum(Indices{a, b}, &KD, Indices{a, b}, K_ij, Indices{a, b}, D_ij);
-    einsum(1.0, Indices{k, l}, &V_ij, -1.0, Indices{k, l, a, b}, *C, Indices{a, b}, KD);
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
 
-    V_s += 0.5 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd * ((*V_ij)(i, j) + (*V_ij)(j, i));
+    V_s += 0.5 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd * (V_ij(i, j) + V_ij(j, i));
 
     if ( i != j ) {
-        V_t += 0.5 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd * ((*V_ij)(i, j) - (*V_ij)(j, i));
+        V_t += 0.5 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd * (V_ij(i, j) - V_ij(j, i));
     }
     return {V_s, V_t};
 }
 
-std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B, einsums::Tensor<double, 4> *C, 
+std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, einsums::Tensor<double, 4> *C,
                                           einsums::TensorView<double, 2>& D_ij, 
                                           const int& i, const int& j)
 {
@@ -511,14 +509,14 @@ std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B, einsums
     auto B_t = 0.0;
     int kd;
 
-    Tensor<double, 4> B_ij{"B = B - X * (fii +fjj)", nocc_, nocc_, nocc_, nocc_};
-    Tensor<double, 4> CD{"Temp 1", nocc_, nocc_, nvir_, nvir_};
-    B_ij = B;
-    ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
+    {
+        Tensor<double, 4> CD{"Temp 1", nocc_, nocc_, nvir_, nvir_};
+        einsum(Indices{k, l, a, b}, &CD, Indices{k, l, a, b}, *C, Indices{a, b}, D_ij);
+        einsum(1.0, Indices{k, l, m, n}, &B_ij, -1.0, Indices{m, n, a, b}, *C,
+                                                      Indices{k, l, a, b}, CD);
+    }
 
-    einsum(Indices{k, l, a, b}, &CD, Indices{k, l, a, b}, *C, Indices{a, b}, D_ij);
-    einsum(1.0, Indices{k, l, m, n}, &B_ij, -1.0, Indices{m, n, a, b}, *C,
-                                                  Indices{k, l, a, b}, CD);
+    ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
 
     B_s += 0.125 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd 
                  * (B_ij(i, j, i, j) + B_ij(j, i, i, j))

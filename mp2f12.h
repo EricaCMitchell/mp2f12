@@ -162,7 +162,7 @@ class MP2F12 : public Wavefunction {
     double t_(const int& p, const int& q, const int& r, const int& s);
 
     /* Form the $T^{ij}_{ij}\Tilde{V}^{ij}_{ij}$ contirbution to the energy */
-    std::pair<double, double> V_Tilde(einsums::TensorView<double, 2>& V_, einsums::Tensor<double, 4> *C,
+    std::pair<double, double> V_Tilde(einsums::Tensor<double, 2>& V_, einsums::Tensor<double, 4> *C,
                                       einsums::TensorView<double, 2>& K_ij, einsums::TensorView<double, 2>& D_ij,
                                       const int& i, const int& j);
 
