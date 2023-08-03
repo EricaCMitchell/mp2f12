@@ -162,6 +162,65 @@ void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f
     }
 }
 
+void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<double,4> *X, 
+                               einsums::Tensor<double,4> *B, einsums::Tensor<double,4> *V,
+                               einsums::Tensor<double,2> *f, einsums::Tensor<double,4> *C, 
+                               einsums::Tensor<double,4> *D)
+{
+    using namespace einsums;
+    using namespace tensor_algebra;
+    using namespace tensor_algebra::index;
+
+    auto E_f12_s = 0.0;
+    auto E_f12_t = 0.0;
+    int kd;
+
+    auto G_ = (*G)(Range{0, nocc_}, Range{0, nocc_}, Range{nocc_, nobs_}, Range{nocc_, nobs_});
+
+    outfile->Printf("  \n");
+    outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
+                    "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
+    outfile->Printf(" ----------------------------------------------------------------------\n");
+    for (size_t i = nfrzn_; i < nocc_; i++) {
+        for (size_t j = i; j < nocc_; j++) {
+            // Allocations
+            Tensor B_ = (*B)(All, All, All, All);
+            {
+                Tensor X_ = (*X)(All, All, All, All);
+                auto f_scale = (*f)(i, i) + (*f)(j, j);
+                linear_algebra::scale(f_scale, &X_);
+                sort(1.0, Indices{k, l, m, n}, &B_, -1.0, Indices{k, l, m, n}, X_);
+            }
+
+            // Getting V_Tilde and B_Tilde
+            Tensor V_ = TensorView<double, 2>{(*V), Dim<2>{nocc_, nocc_}, Offset<4>{i, j, 0, 0},
+                                            Stride<2>{(*V).stride(2), (*V).stride(3)}};
+            auto K_ = TensorView<double, 2>{G_, Dim<2>{nvir_, nvir_}, Offset<4>{i, j, 0, 0},
+                                            Stride<2>{G_.stride(2), G_.stride(3)}};
+            auto D_ = TensorView<double, 2>{(*D), Dim<2>{nvir_, nvir_}, Offset<4>{i, j, 0, 0},
+                                            Stride<2>{(*D).stride(2), (*D).stride(3)}};
+            auto VT = V_Tilde(V_, C, K_, D_, i, j);
+            auto BT = B_Tilde(B_, C, D_, i, j);
+
+            // Computing the energy
+            ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
+            auto E_s = kd * (VT.first + BT.first);
+            E_f12_s += E_s;
+            auto E_t = 0.0;
+            if ( i != j ) {
+                E_t = 3.0 * kd * (VT.second + BT.second);
+                E_f12_t += E_t;
+            }
+            auto E_f = E_s + E_t;
+            outfile->Printf("%3d %3d  |   %16.12f   %16.12f     %16.12f \n", i+1, j+1, E_s, E_t, E_f);
+        }
+    }
+    outfile->Printf("\n  F12/3C Singlet Correlation:      %16.12f \n", E_f12_s);
+    outfile->Printf("  F12/3C Triplet Correlation:      %16.12f \n", E_f12_t);
+
+    E_f12_ = E_f12_s + E_f12_t;
+}
+
 void MP2F12::form_cabs_singles(einsums::Tensor<double,2> *f)
 {
     using namespace einsums;
@@ -200,63 +259,6 @@ void MP2F12::form_cabs_singles(einsums::Tensor<double,2> *f)
     }
 
     E_singles_ = E_s;
-}
-
-void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<double,4> *X, 
-                               einsums::Tensor<double,4> *B, einsums::Tensor<double,4> *V,
-                               einsums::Tensor<double,2> *f, einsums::Tensor<double,4> *C, 
-                               einsums::Tensor<double,4> *D)
-{
-    using namespace einsums;
-    using namespace tensor_algebra;
-    using namespace tensor_algebra::index;
-
-    auto E_f12_s = 0.0;
-    auto E_f12_t = 0.0;
-    int kd;
-
-    auto G_ = (*G)(Range{0, nocc_}, Range{0, nocc_}, Range{nocc_, nobs_}, Range{nocc_, nobs_});
-
-    outfile->Printf("  \n");
-    outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
-                    "i", "j", "E_F12(Singlet)", "E_F12(Triplet)", "E_F12");
-    outfile->Printf(" ----------------------------------------------------------------------\n");
-    for (size_t i = nfrzn_; i < nocc_; i++) {
-        for (size_t j = i; j < nocc_; j++) {
-            // Allocations
-            Tensor X_ = (*X)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
-            Tensor B_ = (*B)(Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_}, Range{0, nocc_});
-            // Building B_
-            auto f_scale = (*f)(i, i) + (*f)(j, j);
-            linear_algebra::scale(f_scale, &X_);
-            tensor_algebra::element([](double const &Bval, double const &Xval)
-                                    -> double { return Bval - Xval; }, &B_, X_);
-            // Getting V_Tilde and B_Tilde
-            Tensor V_ = TensorView<double, 2>{(*V), Dim<2>{nocc_, nocc_}, Offset<4>{i, j, 0, 0},
-                                            Stride<2>{(*V).stride(2), (*V).stride(3)}};
-            auto K_ = TensorView<double, 2>{G_, Dim<2>{nvir_, nvir_}, Offset<4>{i, j, 0, 0},
-                                            Stride<2>{G_.stride(2), G_.stride(3)}};
-            auto D_ = TensorView<double, 2>{(*D), Dim<2>{nvir_, nvir_}, Offset<4>{i, j, 0, 0},
-                                            Stride<2>{(*D).stride(2), (*D).stride(3)}};
-            auto VT = V_Tilde(V_, C, K_, D_, i, j);
-            auto BT = B_Tilde(B_, C, D_, i, j);
-            // Computing the energy
-            ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
-            auto E_s = kd * (VT.first + BT.first);
-            E_f12_s += E_s;
-            auto E_t = 0.0;
-            if ( i != j ) {
-                E_t = 3.0 * kd * (VT.second + BT.second);
-                E_f12_t += E_t;
-            }
-            auto E_f = E_s + E_t;
-            outfile->Printf("%3d %3d  |   %16.12f   %16.12f     %16.12f \n", i+1, j+1, E_s, E_t, E_f);
-        }
-    }
-    outfile->Printf("\n  F12/3C Singlet Correlation:      %16.12f \n", E_f12_s);
-    outfile->Printf("  F12/3C Triplet Correlation:      %16.12f \n", E_f12_t);
-
-    E_f12_ = E_f12_s + E_f12_t;
 }
 
 double MP2F12::compute_energy()

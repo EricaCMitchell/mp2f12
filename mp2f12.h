@@ -112,14 +112,14 @@ class MP2F12 : public Wavefunction {
     /* Form the energy denominator */
     void form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f);
 
-    /* Form the CABS Singles correction $\frac{|f^{a'}_{i}}|^2}{e_{a'} - e_{i}}$ */
-    void form_cabs_singles(einsums::Tensor<double,2> *f);
-
     /* Form the F12/3C(FIX) correlation energy */
     void form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<double,4> *X, 
                          einsums::Tensor<double,4> *B, einsums::Tensor<double,4> *V,
                          einsums::Tensor<double,2> *f, einsums::Tensor<double,4> *C, 
                          einsums::Tensor<double,4> *D);
+
+    /* Form the CABS Singles correction $\frac{|f^{a'}_{i}}|^2}{e_{a'} - e_{i}}$ */
+    void form_cabs_singles(einsums::Tensor<double,2> *f);
    
     /* Form the one-electron integrals H = T + V */
     void form_oeints(einsums::Tensor<double, 2> *h);
@@ -162,13 +162,13 @@ class MP2F12 : public Wavefunction {
     double t_(const int& p, const int& q, const int& r, const int& s);
 
     /* Form the $T^{ij}_{ij}\Tilde{V}^{ij}_{ij}$ contirbution to the energy */
-    std::pair<double, double> V_Tilde(einsums::Tensor<double, 2>& V_, einsums::Tensor<double, 4> *C,
+    std::pair<double, double> V_Tilde(einsums::Tensor<double, 2>& V_ij, einsums::Tensor<double, 4> *C,
                                       einsums::TensorView<double, 2>& K_ij, einsums::TensorView<double, 2>& D_ij,
                                       const int& i, const int& j);
 
     /* Form the $T^{ij}_{ij}\Tilde{B}^{ij}_{ij}T^{ij}_{ij}$ contirbution to the energy */
-    std::pair<double, double> B_Tilde(einsums::Tensor<double, 4>& B, einsums::Tensor<double, 4> *C, 
-                                      einsums::TensorView<double, 2>& D_ij, 
+    std::pair<double, double> B_Tilde(einsums::Tensor<double, 4>& B_ij, einsums::Tensor<double, 4> *C,
+                                      einsums::TensorView<double, 2>& D_ij,
                                       const int& i, const int& j);
 
     /* Converts the AO to MO matrices to einsum::Tensors */
