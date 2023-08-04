@@ -304,7 +304,7 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
     }
 
     int nmo1, nmo2, nmo3, nmo4;
-    int I, J, K, L;
+    int off1, off2, off3, off4;
     int o1, o2, o3, o4;
     for (int idx = 0; idx < (order.size()/4); idx++) {
         int i = idx * 4;
@@ -376,32 +376,32 @@ void MP2F12::form_teints(const std::string& int_type, einsums::Tensor<double, 4>
 
         // Stitch into ERI Tensor
         {
-            (o1 == 1) ? I = nobs_ : I = 0;
-            (o2 == 1) ? J = nobs_ : J = 0;
-            (o3 == 1) ? K = nobs_ : K = 0;
-            (o4 == 1) ? L = nobs_ : L = 0;
+            (o1 == 1) ? off1 = nobs_ : off1 = 0;
+            (o2 == 1) ? off2 = nobs_ : off2 = 0;
+            (o3 == 1) ? off3 = nobs_ : off3 = 0;
+            (o4 == 1) ? off4 = nobs_ : off4 = 0;
 
-            TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{I, J, K, L}};
+            TensorView<double, 4> ERI_PQRS{*ERI, Dim<4>{nmo1, nmo2, nmo3, nmo4}, Offset<4>{off1, off2, off3, off4}};
             set_ERI(ERI_PQRS, PQRS.get());
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "F") {
                 Tensor<double, 4> QPSR{"QPSR", nmo2, nmo1, nmo4, nmo3};
                 sort(Indices{Q, P, index::S, R}, &QPSR, Indices{P, Q, R, index::S}, PQRS);
-                TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{J, I, L, K}};
+                TensorView<double, 4> ERI_QPSR{*ERI, Dim<4>{nmo2, nmo1, nmo4, nmo3}, Offset<4>{off2, off1, off4, off3}};
                 set_ERI(ERI_QPSR, &QPSR);
             } // end of if statement
 
             if (nbf3 != nbf1 && nbf3 != nbf2 && nbf3 != nbf4 && int_type == "J") {
                 Tensor<double, 4> RSPQ{"RSPQ", nmo3, nmo4, nmo1, nmo2};
                 sort(Indices{R, index::S, P, Q}, &RSPQ, Indices{P, Q, R, index::S}, PQRS);
-                TensorView<double, 4> ERI_RSPQ{*ERI, Dim<4>{nmo3, nmo4, nmo1, nmo2}, Offset<4>{K, L, I, J}};
+                TensorView<double, 4> ERI_RSPQ{*ERI, Dim<4>{nmo3, nmo4, nmo1, nmo2}, Offset<4>{off3, off4, off1, off2}};
                 set_ERI(ERI_RSPQ, &RSPQ);
             } // end of if statement
 
             if (nbf4 != nbf1 && nbf4 != nbf2 && nbf4 != nbf3 && int_type == "K") {
                 Tensor<double, 4> SRQP{"SRQP", nmo4, nmo3, nmo2, nmo1};
                 sort(Indices{index::S, R, Q, P}, &SRQP, Indices{P, Q, R, index::S}, PQRS);
-                TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{L, K, J, I}};
+                TensorView<double, 4> ERI_SRQP{*ERI, Dim<4>{nmo4, nmo3, nmo2, nmo1}, Offset<4>{off4, off3, off2, off1}};
                 set_ERI(ERI_SRQP, &SRQP);
             } // end of if statement
         }
@@ -630,18 +630,18 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
                  'o', 'o', 'o', 'C',};
     }
 
-    int P, Q, R, S;
+    int off1, off2, off3, off4;
     int nmo1, nmo2, nmo3, nmo4;
     for (int idx = 0; idx < (order.size()/4); idx++) {
         int i = idx * 4;
-        ( order[i] == 'C' ) ? (P = nobs_, nmo1 = ncabs_) :
-                            ( order[i] == 'O' ) ? (P = 0, nmo1 = nobs_) : (P = 0, nmo1 = nocc_);
-        (order[i+1] == 'C') ? (Q = nobs_, nmo2 = ncabs_) :
-                            (order[i+1] == 'O') ? (Q = 0, nmo2 = nobs_) : (Q = 0, nmo2 = nocc_);
-        (order[i+2] == 'C') ? (R = nobs_, nmo3 = ncabs_) :
-                            (order[i+2] == 'O') ? (R = 0, nmo3 = nobs_) : (R = 0, nmo3 = nocc_);
-        (order[i+3] == 'C') ? (S = nobs_, nmo4 = ncabs_) :
-                            (order[i+3] == 'O') ? (S = 0, nmo4 = nobs_) : (S = 0, nmo4 = nocc_);
+        ( order[i] == 'C' ) ? (off1 = nobs_, nmo1 = ncabs_) :
+                              ( order[i] == 'O' ) ? (off1 = 0, nmo1 = nobs_) : (off1 = 0, nmo1 = nocc_);
+        (order[i+1] == 'C') ? (off2 = nobs_, nmo2 = ncabs_) :
+                              (order[i+1] == 'O') ? (off2 = 0, nmo2 = nobs_) : (off2 = 0, nmo2 = nocc_);
+        (order[i+2] == 'C') ? (off3 = nobs_, nmo3 = ncabs_) :
+                              (order[i+2] == 'O') ? (off3 = 0, nmo3 = nobs_) : (off3 = 0, nmo3 = nocc_);
+        (order[i+3] == 'C') ? (off4 = nobs_, nmo4 = ncabs_) :
+                              (order[i+3] == 'O') ? (off4 = 0, nmo4 = nobs_) : (off4 = 0, nmo4 = nocc_);
 
         auto phys_robust = std::make_unique<Tensor<double, 4>>("<PR|F12|QS> MO", nmo1, nmo3, nmo2, nmo4);
         {
@@ -651,15 +651,15 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
             form_oper_ints(int_type, ARPQ.get());
 
             // Term 1
-            Tensor left_metric  = (*Metric)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
-            Tensor right_oper = (*ARPQ)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
+            Tensor left_metric  = (*Metric)(All, Range{off1, nmo1 + off1}, Range{off2, nmo2 + off2});
+            Tensor right_oper = (*ARPQ)(All, Range{off3, nmo3 + off3}, Range{off4, nmo4 + off4});
             einsum(Indices{p, q, r, s}, &chem_robust, Indices{A, p, q}, left_metric, Indices{A, r, s}, right_oper);
 
             if ( int_type != "G" ) {
                 // Term 2
-                Tensor right_metric = (*Metric)(All, Range{R, nmo3 + R}, Range{S, nmo4 + S});
+                Tensor right_metric = (*Metric)(All, Range{off3, nmo3 + off3}, Range{off4, nmo4 + off4});
                 {
-                    Tensor left_oper  = (*ARPQ)(All, Range{P, nmo1 + P}, Range{Q, nmo2 + Q});
+                    Tensor left_oper  = (*ARPQ)(All, Range{off1, nmo1 + off1}, Range{off2, nmo2 + off2});
                     einsum(1.0, Indices{p, q, r, s}, &chem_robust,
                            1.0, Indices{A, p, q}, left_oper, Indices{A, r, s}, right_metric);
                 }
@@ -680,7 +680,7 @@ void MP2F12::form_df_teints(const std::string& int_type, einsums::Tensor<double,
         }
 
         {
-            TensorView<double, 4> ERI_PRQS{(*ERI), Dim<4>{nmo1, nmo3, nmo2, nmo4}, Offset<4>{P, R, Q, S}};
+            TensorView<double, 4> ERI_PRQS{(*ERI), Dim<4>{nmo1, nmo3, nmo2, nmo4}, Offset<4>{off1, off3, off2, off4}};
             set_ERI(ERI_PRQS, phys_robust.get());
         }
     } // end of for loop
