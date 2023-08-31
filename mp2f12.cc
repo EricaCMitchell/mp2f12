@@ -484,7 +484,7 @@ std::pair<double, double> MP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, eins
     int kd;
 
     {
-        auto KD = std::make_unique<Tensor<double, 2>>("Temp 1", nvir_, nvir_);
+        Tensor<double, 2> KD{"K_ijab . D_ijab", nvir_, nvir_};
         einsum(Indices{a, b}, &KD, Indices{a, b}, K_ij, Indices{a, b}, D_ij);
         einsum(1.0, Indices{k, l}, &V_ij, -1.0, Indices{k, l, a, b}, *C, Indices{a, b}, KD);
     }
@@ -512,7 +512,7 @@ std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, eins
     int kd;
 
     {
-        Tensor<double, 4> CD{"Temp 1", nocc_, nocc_, nvir_, nvir_};
+        Tensor<double, 4> CD{"C_klab . D_ijab", nocc_, nocc_, nvir_, nvir_};
         einsum(Indices{k, l, a, b}, &CD, Indices{k, l, a, b}, *C, Indices{a, b}, D_ij);
         einsum(1.0, Indices{k, l, m, n}, &B_ij, -1.0, Indices{m, n, a, b}, *C,
                                                       Indices{k, l, a, b}, CD);
