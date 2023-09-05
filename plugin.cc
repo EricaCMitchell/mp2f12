@@ -46,7 +46,7 @@ int read_options(std::string name, Options& options)
         /*- Whether to compute the CABS Singles Correction -*/
         options.add_bool("CABS_SINGLES", true);
         /*- Choose conventional or density-fitted. Default to CONV -*/
-        options.add_str("F12_TYPE", "CONV");
+        options.add_str("F12_TYPE", "CONV", "CONV DF DISK_CONV DISK_DF");
         /*- Choose a density-fitting basis for integrals -*/
         options.add_str("DF_BASIS_F12", "");
         /*- Set contracted Gaussian-type geminal beta value -*/
@@ -59,10 +59,15 @@ int read_options(std::string name, Options& options)
 extern "C" PSI_API
 SharedWavefunction mp2f12(SharedWavefunction ref_wfn, Options& options)
 {
-    
-    std::shared_ptr<MP2F12> mp2f12(new MP2F12(ref_wfn, options));
+    double e_f12_total = 0.0;
 
-    double e_f12_total = mp2f12->compute_energy();
+    if (options.get_str("F12_TYPE").find("DISK") != std::string::npos) {
+        std::shared_ptr<DiskMP2F12> mp2f12(new DiskMP2F12(ref_wfn, options));
+        e_f12_total = mp2f12->compute_energy();
+    } else {
+        std::shared_ptr<MP2F12> mp2f12(new MP2F12(ref_wfn, options));
+        e_f12_total = mp2f12->compute_energy();
+    }
 
     ref_wfn->set_scalar_variable("CURRENT ENERGY", e_f12_total);
 

@@ -52,7 +52,7 @@ add_psi4_plugin(mp2f12
     f12_intermediates.cc
 )
 
-add_subdirectory(external)
+add_subdirectory(_deps)
 
 target_link_libraries(mp2f12
     PUBLIC
