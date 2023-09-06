@@ -799,6 +799,7 @@ void DiskMP2F12::three_index_ao_computer(const std::string& int_type, einsums::T
 {
     std::shared_ptr<BasisSet> zero(BasisSet::zero_ao_basis_set());
     std::shared_ptr<IntegralFactory> intf(new IntegralFactory(DFBS_, zero, bs1, bs2));
+
     std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
     if ( int_type == "F" ){
         ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->f12(cgtg_)));
@@ -811,10 +812,12 @@ void DiskMP2F12::three_index_ao_computer(const std::string& int_type, einsums::T
     } else {
         ints.push_back(std::shared_ptr<TwoBodyAOInt>(intf->eri()));
     }
+
     // Make ints vectors
     for (size_t thread = 1; thread < nthreads_; thread++) {
         ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
     }
+
 #pragma omp parallel for collapse(3) schedule(guided) num_threads(nthreads_)
     for (size_t B = 0; B < DFBS_->nshell(); B++) {
         for (size_t P = 0; P < bs1->nshell(); P++) {
@@ -829,8 +832,10 @@ void DiskMP2F12::three_index_ao_computer(const std::string& int_type, einsums::T
                 const size_t index_B = DFBS_->shell(B).function_index();
                 const size_t index_P = bs1->shell(P).function_index();
                 const size_t index_Q = bs2->shell(Q).function_index();
+
                 ints[rank]->compute_shell(B, 0, P, Q);
                 const auto *ints_buff = ints[rank]->buffers()[0];
+
                 size_t index = 0;
                 for (size_t b = 0; b < numB; b++) {
                     for (size_t p = 0; p < numP; p++) {

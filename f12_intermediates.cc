@@ -39,7 +39,7 @@
 
 namespace psi { namespace mp2f12 {
 
-void MP2F12::form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k, 
+void MP2F12::form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
                        einsums::Tensor<double, 2> *fk, einsums::Tensor<double, 2> *h)
 {
     using namespace einsums;
@@ -274,7 +274,7 @@ void MP2F12::form_B(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *U
 
 /* Disk Algorithm */
 
-void DiskMP2F12::form_fock(einsums::DiskTensor<double, 2> *f, einsums::DiskTensor<double, 2> *k, 
+void DiskMP2F12::form_fock(einsums::DiskTensor<double, 2> *f, einsums::DiskTensor<double, 2> *k,
                        einsums::DiskTensor<double, 2> *fk, einsums::DiskTensor<double, 2> *h)
 {
     using namespace einsums;

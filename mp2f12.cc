@@ -53,30 +53,6 @@
 
 namespace psi { namespace mp2f12 {
 
-void print_r4_tensor(einsums::Tensor<double, 4> M)
-{
-    using namespace einsums;
-
-    int r1 = M.dim(0);
-    int r2 = M.dim(1);
-    int c1 = M.dim(2);
-    int c2 = M.dim(3);
-    auto M_psi4 = std::make_shared<Matrix>(M.name(), r1 * r2, c1 * c2);
-
-    #pragma omp for collapse(4)
-    for (int p = 0; p < r1; p++) {
-        for (int q = 0; q < r2; q++) {
-            for (int r = 0; r < c1; r++) {
-                for (int s = 0; s < c2; s++) {
-                    M_psi4->set(p * r2 + q, r * c2 + s, M(p,q,r,s));
-                }
-            }
-        }
-    }
-
-    M_psi4->print_to_numpy();
-}
-
 MP2F12::MP2F12(SharedWavefunction reference_wavefunction, Options& options):
     Wavefunction(options) {
     reference_wavefunction_ = reference_wavefunction;
@@ -413,19 +389,16 @@ double MP2F12::compute_energy()
     form_V_or_X(V.get(), F.get(), G.get(), FG.get());
     timer_off("V Intermediate");
     FG.reset();
-    print_r4_tensor(*V);
 
     outfile->Printf("   X Intermediate\n");
     timer_on("X Intermediate");
     form_V_or_X(X.get(), F.get(), F.get(), F2.get());
     timer_off("X Intermediate");
-    print_r4_tensor(*X);
 
     outfile->Printf("   C Intermediate\n");
     timer_on("C Intermediate");
     form_C(C.get(), F.get(), f.get());
     timer_off("C Intermediate");
-    print_r4_tensor(*C);
 
     outfile->Printf("   B Intermediate\n");
     timer_on("B Intermediate");
@@ -435,7 +408,6 @@ double MP2F12::compute_energy()
     F2.reset();
     F.reset();
     fk.reset();
-    print_r4_tensor(*B);
 
     timer_on("Energy Denom");
     form_D(D.get(), f.get());
@@ -905,29 +877,21 @@ double DiskMP2F12::compute_energy()
     timer_on("V Intermediate");
     form_V_or_X(V.get(), F.get(), G.get(), FG.get());
     timer_off("V Intermediate");
-    auto V_view = (*V)(All, All, All, All);
-    print_r4_tensor(V_view.get());
 
     outfile->Printf("   X Intermediate\n");
     timer_on("X Intermediate");
     form_V_or_X(X.get(), F.get(), F.get(), F2.get());
     timer_off("X Intermediate");
-    auto X_view = (*X)(All, All, All, All);
-    print_r4_tensor(X_view.get());
 
     outfile->Printf("   C Intermediate\n");
     timer_on("C Intermediate");
     form_C(C.get(), F.get(), f.get());
     timer_off("C Intermediate");
-    auto C_view = (*C)(All, All, All, All);
-    print_r4_tensor(C_view.get());
 
     outfile->Printf("   B Intermediate\n");
     timer_on("B Intermediate");
     form_B(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get());
     timer_off("B Intermediate");
-    auto B_view = (*B)(All, All, All, All);
-    print_r4_tensor(B_view.get());
 
     timer_on("Energy Denom");
     form_D(D.get(), f.get());

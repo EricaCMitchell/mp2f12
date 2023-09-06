@@ -44,7 +44,7 @@ def run_mp2f12(name, **kwargs):
     kwargs = p4util.kwargs_lower(kwargs)
 
     # Ensure that SCF and MP2 are run with CONV if F12_TYPE is CONV
-    if psi4.core.get_local_option("MP2F12", "F12_TYPE") == "CONV":
+    if "CONV" in psi4.core.get_local_option("MP2F12", "F12_TYPE"):
         psi4.core.set_global_option("MP2_TYPE", "CONV")
 
     # Ensure that SCF and MP2 are run with DF if F12_TYPE is DF
