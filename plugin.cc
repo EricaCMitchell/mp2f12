@@ -41,16 +41,16 @@ int read_options(std::string name, Options& options)
     if (name == "MP2F12"|| options.read_globals()) {
         /*- The amount of information printed to the output file -*/
         options.add_int("PRINT", 0);
+        /*- Choose conventional or density-fitted. Default to CONV -*/
+        options.add_str("F12_TYPE", "CONV", "CONV DF DISK_CONV DISK_DF");
+        /*- Set contracted Gaussian-type geminal beta value -*/
+        options.add_double("F12_BETA", 1.0);
         /*- Choose a basis for Complementary Auxiliary Basis Set -*/
         options.add_str("CABS_BASIS", "");
         /*- Whether to compute the CABS Singles Correction -*/
         options.add_bool("CABS_SINGLES", true);
-        /*- Choose conventional or density-fitted. Default to CONV -*/
-        options.add_str("F12_TYPE", "CONV", "CONV DF DISK_CONV DISK_DF");
         /*- Choose a density-fitting basis for integrals -*/
         options.add_str("DF_BASIS_F12", "");
-        /*- Set contracted Gaussian-type geminal beta value -*/
-        options.add_double("F12_BETA", 1.0);
     }
 
     return true;

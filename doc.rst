@@ -42,15 +42,14 @@ Theory, Usage, and Notes
 Casual documentation for this plugin goes here.
 Uncomment the ``.. comment`` for some examples.
 
-.. comment * this plugin solves :math:`H=F_A+W_A+F_B+W_B+V`
-.. comment * reference to keyword |globals__docc| and |mp2f12__print|
-.. comment * returns :psivar:`CURRENT ENERGY <CURRENTENERGY>` in |kcalpermol|
-.. comment * operation depends on :envvar:`OMP_NUM_THREADS`.
+.. comment * this plugin solves :math:`E_{F12} = 2 \Tilde{V}^{ij}_{kl} + \Tilde{B}^{ij}_{kl,mn}`
+.. comment * reference to keyword |mp2f12__print|
+.. comment * reference to keyword |mp2f12__F12_TYPE|
+.. comment * reference to keyword |mp2f12__F12_BETA|
+.. comment * reference to keyword |mp2f12__CABS_BASIS|
+.. comment * reference to keyword |mp2f12__CABS_SINGLES|
+.. comment * reference to keyword |mp2f12__DF_BASIS_F12|
+.. comment * returns :psivar:`CURRENT ENERGY <CURRENTENERGY>` in |hartree|
 .. comment * operation requires external software described in :ref:`sec:interfacing`
-.. comment 
-.. comment .. caution:: Some features are not yet implemented.
-.. comment 
-.. comment    - Do not run plugin more than ten feet away from developer.
-.. comment 
-.. comment    - Do not run plugin on benzene dimer.
+
 
