@@ -13,4 +13,7 @@
 **/output.dat
 **/timer.dat
 
-
+# Einsum Dependencies
+_deps/*-src
+_deps/*-*build
+_deps/EinsumsInCpp

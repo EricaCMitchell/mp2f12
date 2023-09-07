@@ -1,7 +1,7 @@
 .. comment /*
 .. comment  * @BEGIN LICENSE
 .. comment  *
-.. comment  * mp2f12 by Psi4 Developer, a plugin to:
+.. comment  * mp2f12 by Erica Mitchell, a plugin to:
 .. comment  *
 .. comment  * Psi4: an open-source quantum chemistry software package
 .. comment  *
@@ -36,11 +36,8 @@
 Theory, Usage, and Notes
 ------------------------
 
-.. codeauthor:: Psi4 Developer
-.. sectionauthor:: Psi4 Developer
-
-Casual documentation for this plugin goes here.
-Uncomment the ``.. comment`` for some examples.
+.. codeauthor:: Erica Mitchell
+.. sectionauthor:: Erica Mitchell
 
 .. comment * this plugin solves :math:`E_{F12} = 2 \Tilde{V}^{ij}_{kl} + \Tilde{B}^{ij}_{kl,mn}`
 .. comment * reference to keyword |mp2f12__print|
