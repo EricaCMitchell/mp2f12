@@ -1,5 +1,5 @@
-[submodule "external/EinsumsInCpp"]
-	path = external/EinsumsInCpp
+[submodule "_deps/EinsumsInCpp"]
+	path = _deps/EinsumsInCpp
 	url = https://github.com/jturney/EinsumsInCpp
 	branch = main
 	ignore = dirty

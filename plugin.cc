@@ -61,11 +61,12 @@ SharedWavefunction mp2f12(SharedWavefunction ref_wfn, Options& options)
 {
     double e_f12_total = 0.0;
 
+    std::shared_ptr<Wavefunction> mp2f12;
     if (options.get_str("F12_TYPE").find("DISK") != std::string::npos) {
-        std::shared_ptr<DiskMP2F12> mp2f12(new DiskMP2F12(ref_wfn, options));
+        mp2f12 = std::make_shared<DiskMP2F12>(ref_wfn, options);
         e_f12_total = mp2f12->compute_energy();
     } else {
-        std::shared_ptr<MP2F12> mp2f12(new MP2F12(ref_wfn, options));
+        mp2f12 = std::make_shared<MP2F12>(ref_wfn, options);
         e_f12_total = mp2f12->compute_energy();
     }
 

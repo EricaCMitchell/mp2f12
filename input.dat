@@ -28,7 +28,7 @@ set {
 set mp2f12 {
   CABS_BASIS cc-pvtz-jkfit
   #DF_BASIS_F12 aug-cc-pvtz-ri
-  #F12_TYPE disk_conv
+  F12_TYPE disk_conv
   CABS_SINGLES true
 }
 

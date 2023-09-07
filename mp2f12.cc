@@ -81,7 +81,8 @@ void MP2F12::common_init()
     nfrzn_ = reference_wavefunction_->frzcpi()[0];
     naux_ = 0;
 
-    if ( f12_type_ == "DF" ) {
+    if (f12_type_.find("DF") != std::string::npos) {
+        use_df_ = true;
         DFBS_ = reference_wavefunction_->get_basisset("DF_BASIS_MP2");
         naux_ = DFBS_->nbf();
     }
@@ -98,19 +99,21 @@ void MP2F12::common_init()
 void MP2F12::print_header()
 {
     outfile->Printf("\n -----------------------------------------------------------\n");
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         outfile->Printf("                      DF-MP2-F12/3C(FIX)                    \n");
-        outfile->Printf("       2nd Order Density-Fitted Explicitly Correlated       \n");
-        outfile->Printf("                    Moeller-Plesset Theory                  \n");
+        outfile->Printf("             Density-Fitted Explicitly Correlated           \n");
+        outfile->Printf("               2nd Order Moeller-Plesset Theory             \n");
         outfile->Printf("                RMP2 Wavefunction, %2d Threads              \n\n", nthreads_);
         outfile->Printf("               Erica Mitchell and Justin Turney             \n");
     } else {
-        outfile->Printf("                       MP2-F12/3C(FIX)                      \n");
-        outfile->Printf("   2nd Order Explicitly Correlated Moeller-Plesset Theory   \n");
-        outfile->Printf("               RMP2 Wavefunction, %2d Threads               \n\n", nthreads_);
-        outfile->Printf("              Erica Mitchell and Justin Turney              \n");
+        outfile->Printf("                        MP2-F12/3C(FIX)                     \n");
+        outfile->Printf("                     Explicitly Correlated                  \n");
+        outfile->Printf("               2nd Order Moeller-Plesset Theory             \n");
+        outfile->Printf("                RMP2 Wavefunction, %2d Threads              \n\n", nthreads_);
+        outfile->Printf("               Erica Mitchell and Justin Turney             \n");
     }
     outfile->Printf(" -----------------------------------------------------------\n\n");
+    outfile->Printf(" Using %s algorithm \n\n", f12_type_.c_str());
 }
 
 void MP2F12::form_basissets()
@@ -126,7 +129,7 @@ void MP2F12::form_basissets()
     OrbitalSpace CABS = OrbitalSpace::build_cabs_space(OBS, RI, 1.0e-6);
     CABS.basisset()->print();
     
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         outfile->Printf("  Auxiliary Basis Set\n");
         DFBS_->print();
     }
@@ -300,7 +303,7 @@ double MP2F12::compute_energy()
     auto k = std::make_unique<Tensor<double, 2>>("Exchange MO Integral", nri_, nri_);
     auto fk = std::make_unique<Tensor<double, 2>>("Fock-Exchange Matrix", nri_, nri_);
 
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         // [J_AB]^{-1}(B|PQ)
         auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nocc_, nri_);
         form_metric_ints(Metric.get(), false);
@@ -435,7 +438,7 @@ double MP2F12::compute_energy()
 
 void MP2F12::print_results()
 {
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         outfile->Printf("\n ===> DF-MP2-F12/3C(FIX) Energies <===\n\n");
     } else {
         outfile->Printf("\n ===> MP2-F12/3C(FIX) Energies <===\n\n");
@@ -446,7 +449,7 @@ void MP2F12::print_results()
 
     E_f12_total_ = E_rhf + E_mp2 + E_f12_ + E_singles_;
 
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         outfile->Printf("  Total DF-MP2-F12/3C(FIX) Energy:      %16.12f \n", E_f12_total_);
     } else {
         outfile->Printf("  Total MP2-F12/3C(FIX) Energy:         %16.12f \n", E_f12_total_);
@@ -539,102 +542,11 @@ std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, eins
 /* Disk Algorithm */
 
 DiskMP2F12::DiskMP2F12(SharedWavefunction reference_wavefunction, Options& options):
-    Wavefunction(options) {
-    reference_wavefunction_ = reference_wavefunction;
+    MP2F12(reference_wavefunction, options) {
     common_init();
 }
 
 DiskMP2F12::~DiskMP2F12() {}
-
-void DiskMP2F12::common_init()
-{
-    if (options_.get_str("REFERENCE") != "RHF") {
-        throw PsiException("Only a restricted reference may be used",__FILE__,__LINE__);
-    }
-
-    options_.set_global_str("SCREENING", "NONE");
-
-    print_ = options_.get_int("PRINT");
-    singles_ = options_.get_bool("CABS_SINGLES");
-
-    f12_type_ = options_.get_str("F12_TYPE");
-
-    std::vector<OrbitalSpace> bs_ = {};
-    nobs_ = reference_wavefunction_->basisset()->nbf();
-    nocc_ = reference_wavefunction_->doccpi()[0];
-    nvir_ = nobs_ - nocc_;
-    nfrzn_ = reference_wavefunction_->frzcpi()[0];
-    naux_ = 0;
-
-    if ( f12_type_ == "DF" ) {
-        DFBS_ = reference_wavefunction_->get_basisset("DF_BASIS_MP2");
-        naux_ = DFBS_->nbf();
-    }
-
-    beta_ = options_.get_double("F12_BETA");
-    cgtg_ = reference_wavefunction_->mintshelper()->f12_cgtg(beta_);
-
-    nthreads_ = 1;
-#ifdef _OPENMP
-    nthreads_ = Process::environment.get_n_threads();
-#endif
-
-    // Disable HDF5 diagnostic reporting
-    H5Eset_auto(0, nullptr, nullptr);
-    einsums::state::data = h5::create("Data.h5", H5F_ACC_TRUNC);
-}
-
-void DiskMP2F12::print_header()
-{
-    outfile->Printf("\n -----------------------------------------------------------\n");
-    if (f12_type_ == "DF") {
-        outfile->Printf("                      DF-MP2-F12/3C(FIX)                    \n");
-        outfile->Printf("       2nd Order Density-Fitted Explicitly Correlated       \n");
-        outfile->Printf("                    Moeller-Plesset Theory                  \n");
-        outfile->Printf("                RMP2 Wavefunction, %2d Threads              \n\n", nthreads_);
-        outfile->Printf("               Erica Mitchell and Justin Turney             \n");
-    } else {
-        outfile->Printf("                       MP2-F12/3C(FIX)                      \n");
-        outfile->Printf("   2nd Order Explicitly Correlated Moeller-Plesset Theory   \n");
-        outfile->Printf("               RMP2 Wavefunction, %2d Threads               \n\n", nthreads_);
-        outfile->Printf("              Erica Mitchell and Justin Turney              \n");
-    }
-    outfile->Printf(" -----------------------------------------------------------\n\n");
-}
-
-void DiskMP2F12::form_basissets()
-{
-    outfile->Printf(" ===> Forming the OBS and CABS <===\n\n");
-
-    outfile->Printf("  Orbital Basis Set (OBS)\n");
-    OrbitalSpace OBS = reference_wavefunction_->alpha_orbital_space("p", "SO", "ALL");
-    OBS.basisset()->print();
-
-    outfile->Printf("  Complimentary Auxiliary Basis Set (CABS)\n");
-    OrbitalSpace RI = OrbitalSpace::build_ri_space(reference_wavefunction_->get_basisset("CABS"), 1.0e-8);
-    OrbitalSpace CABS = OrbitalSpace::build_cabs_space(OBS, RI, 1.0e-6);
-    CABS.basisset()->print();
-
-    if (f12_type_ == "DF") {
-        outfile->Printf("  Auxiliary Basis Set\n");
-        DFBS_->print();
-    }
-
-    nri_ = CABS.dim().max() + nobs_;
-    ncabs_ = nri_ - nobs_;
-
-    if (nfrzn_ != 0) {
-        outfile->Printf("  Frozen Core Orbitals: %3d \n\n", nfrzn_);
-    }
-
-    outfile->Printf("  ----------------------------------------\n");
-    outfile->Printf("     %5s  %5s   %5s  %5s  %5s   \n", "NOCC", "NOBS", "NCABS", "NRI", "NAUX");
-    outfile->Printf("  ----------------------------------------\n");
-    outfile->Printf("     %5d  %5d   %5d  %5d  %5d   \n", nocc_, nobs_, ncabs_, nri_, naux_);
-    outfile->Printf("  ----------------------------------------\n");
-
-    bs_ = {OBS, CABS};
-}
 
 void DiskMP2F12::form_D(einsums::DiskTensor<double, 4> *D, einsums::DiskTensor<double, 2> *f)
 {
@@ -651,7 +563,7 @@ void DiskMP2F12::form_D(einsums::DiskTensor<double, 4> *D, einsums::DiskTensor<d
             for (size_t a = nocc_; a < nobs_; a++) {
                 for (size_t b = nocc_; b < nobs_; b++) {
                     D_view(a - nocc_, b - nocc_) = 1.0 / (e_ij + f_view(a, a)
-                                               + f_view(b, b));
+                                                               + f_view(b, b));
                 }
             }
         }
@@ -759,6 +671,10 @@ double DiskMP2F12::compute_energy()
     using namespace einsums;
     timer::initialize();
 
+    // Disable HDF5 diagnostic reporting
+    H5Eset_auto(0, nullptr, nullptr);
+    einsums::state::data = h5::create("Data.h5", H5F_ACC_TRUNC);
+
     print_header();
 
     /* Form the orbital spaces */
@@ -791,7 +707,7 @@ double DiskMP2F12::compute_energy()
     auto k = std::make_unique<DiskTensor<double, 2>>(state::data, "Exchange MO Integral", nri_, nri_);
     auto fk = std::make_unique<DiskTensor<double, 2>>(state::data, "Fock-Exchange Matrix", nri_, nri_);
 
-    if (f12_type_ == "DF") {
+    if (use_df_) {
         // [J_AB]^{-1}(B|PQ)
         auto Metric = std::make_unique<Tensor<double, 3>>("Metric MO", naux_, nocc_, nri_);
         form_metric_ints(Metric.get(), false);
@@ -916,48 +832,6 @@ double DiskMP2F12::compute_energy()
 
     // Typically you would build a new wavefunction and populate it with data
     return E_f12_total_;
-}
-
-void DiskMP2F12::print_results()
-{
-    if (f12_type_ == "DF") {
-        outfile->Printf("\n ===> DF-MP2-F12/3C(FIX) Energies <===\n\n");
-    } else {
-        outfile->Printf("\n ===> MP2-F12/3C(FIX) Energies <===\n\n");
-    }
-
-    auto E_rhf = Process::environment.globals["CURRENT REFERENCE ENERGY"];
-    auto E_mp2 = Process::environment.globals["CURRENT CORRELATION ENERGY"];
-
-    E_f12_total_ = E_rhf + E_mp2 + E_f12_ + E_singles_;
-
-    if (f12_type_ == "DF") {
-        outfile->Printf("  Total DF-MP2-F12/3C(FIX) Energy:      %16.12f \n", E_f12_total_);
-    } else {
-        outfile->Printf("  Total MP2-F12/3C(FIX) Energy:         %16.12f \n", E_f12_total_);
-    }
-    outfile->Printf("     RHF Reference Energy:              %16.12f \n", E_rhf);
-    outfile->Printf("     MP2 Correlation Energy:            %16.12f \n", E_mp2);
-    outfile->Printf("     F12/3C(FIX) Correlation Energy:    %16.12f \n", E_f12_);
-
-    if (singles_ == true) {
-        outfile->Printf("     CABS Singles Correction:           %16.12f \n", E_singles_);
-    }
-
-    set_scalar_variable("CURRENT CORRELATION ENERGY", E_f12_);
-}
-
-double DiskMP2F12::t_(const int& p, const int& q, const int& r, const int& s)
-{
-    auto t_amp = 0.0;
-    if (p == r && q == s && p != q) {
-        t_amp = 3.0/8.0;
-    } else if (q == r && p == s && p != q) {
-        t_amp = 1.0/8.0;
-    } else if (p == q && p == r && p == s) {
-        t_amp = 0.5;
-    }
-    return t_amp;
 }
 
 std::pair<double, double> DiskMP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, einsums::DiskTensor<double, 4> *C,

@@ -49,7 +49,7 @@ def run_mp2f12(name, **kwargs):
 
     # Ensure that SCF and MP2 are run with DF if F12_TYPE is DF
     # Set DF_BASIS_* to all be the same
-    if psi4.core.get_local_option("MP2F12", "F12_TYPE") == "DF":
+    if "DF" in psi4.core.get_local_option("MP2F12", "F12_TYPE"):
         dfbs = psi4.core.get_local_option("MP2F12", "DF_BASIS_F12")
         psi4.core.set_global_option("SCF_TYPE", "DF")
         psi4.core.set_local_option("SCF", "DF_BASIS_SCF", dfbs)
