@@ -11,7 +11,7 @@ Only two main depedencies are needed, with the rest being needed by Psi4 as well
 Psi4 may be installed with a conda environment or from source.
 
 ### Anaconda Envrionment
-A new version of python may also be used just check the [Psi4 website](https://psicode.org/).
+A new version of python may also be used just check the [Psi4 website](https://psicode.org/) or the [Psi4 Manual](https://psicode.org/psi4manual/master/build_obtaining#conda-binary-package).
 ```
 conda install psi4 python=3.10 -c conda-forge/label/libint_dev -c conda-forge
 conda install cmake
@@ -31,9 +31,10 @@ git fetch origin pull/2982/head:BRANCH_NAME
 git checkout BRANCH_NAME
 ```
 
+Then build as instructed in the [Psi4 Manual](https://psicode.org/psi4manual/master/build_planning).
+
 ## EinsumsInCpp
 EinsumsInCpp is a submodule of this project.
-
 ```
 git submodule init
 git submodule update

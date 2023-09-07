@@ -1,7 +1,7 @@
 #
 # @BEGIN LICENSE
 #
-# MP2F12 by Psi4 Developer, a plugin to:
+# mp2f12 by Erica Mitchell, a plugin to:
 #
 # Psi4: an open-source quantum chemistry software package
 #

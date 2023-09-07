@@ -67,7 +67,7 @@ class MP2F12 : public Wavefunction {
     std::shared_ptr<BasisSet> DFBS_;
 
     /* Bool to turn on DF */
-    bool use_df_;
+    bool use_df_ = false;
 
     /* List of orbital spaces: Orbital Basis Set (OBS) 
        and Complimentary Auxiliary Basis Set (CABS) */
