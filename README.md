@@ -2,7 +2,7 @@
 An explicity correlated second-order Moeller Plesset perturbation theory plugin to Psi4.
 
 # Overview
-This plugin to Psi4 performs explicity correlated second-order Moeller Plesset perturbation theory (MP2-F12) computations using the most robust ansatz (3C) within the fixed or SP- ansatz of Ten-no (FIX) most commonly seen as MP2-F12/3C(FIX). This particular version of the method scales _N_<sup>5</sup>. The bulk of the time to compute this plugin is dedicated to formation of the two-electron integrals, which are not screened due to limitations with Psi4.
+This plugin to Psi4 performs explicity correlated second-order Moeller Plesset perturbation theory (MP2-F12) computations using the most robust ansatz (3C) within the diagonal orbital-invariant (SP) ansatz of Ten-no (FIX) most commonly seen as MP2-F12/3C(FIX). This particular version of the method scales _N_<sup>5</sup>. The bulk of the time to compute this plugin is dedicated to formation of the two-electron integrals, which are not screened due to limitations with Psi4.
 
 # Installation
 Only two main depedencies are needed, with the rest being needed by Psi4 as well.
