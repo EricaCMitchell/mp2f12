@@ -18,23 +18,14 @@ conda install cmake
 ```
 
 ### Source
-Two steps will be needed as of 7 Sep 2023.
-
 1. Clone the Psi4 repo
 ```
 git clone https://github.com/psi4/psi4.git
 ```
-
-2. Pull the "CABS, rework build_cabs_space" PR
-```
-git fetch origin pull/2982/head:BRANCH_NAME
-git checkout BRANCH_NAME
-```
-
 Then build as instructed in the [Psi4 Manual](https://psicode.org/psi4manual/master/build_planning).
 
-## EinsumsInCpp
-EinsumsInCpp is a submodule of this project.
+## Einsums
+Einsums is a submodule of this project.
 ```
 git submodule init
 git submodule update
@@ -43,8 +34,10 @@ git submodule update
 ## mp2f12
 Once the dependencies are loaded, the plugin can be made.
 ```
-psi4 --plugin-compile -DEINSUMS_ENABLE_TESTING=ON
+`psi4 --plugin-compile` -S. -Bbuild
+cd build
 make
+mv mp2f12.so ..
 ```
 
 # Input Options
