@@ -1,1 +1,1 @@
-add_subdirectory(EinsumsInCpp)
+add_subdirectory(Einsums)

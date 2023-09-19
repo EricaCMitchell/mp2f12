@@ -4,6 +4,7 @@
 **/cmake_install.cmake
 **/CMakeFiles/
 **/Makefile
+**/build
 
 # Compiled Files
 
@@ -16,4 +17,4 @@
 # Einsum Dependencies
 _deps/*-src
 _deps/*-*build
-_deps/EinsumsInCpp
+_deps/Einsums
