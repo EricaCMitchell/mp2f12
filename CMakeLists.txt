@@ -38,7 +38,7 @@ set(mp2f12_Description  "Explicitly Correlated MP2 plugin to Psi4")
 set(mp2f12_URL  "github.com/EricaCMitchell/mp2f12")
 
 
-find_package(psi4 1.1 REQUIRED)
+find_package(psi4 1.8 REQUIRED)
 
 find_package(OpenMP)
 if (OpenMP_FOUND)
