@@ -73,6 +73,7 @@ void MP2F12::common_init()
     singles_ = options_.get_bool("CABS_SINGLES");
 
     f12_type_ = options_.get_str("F12_TYPE");
+    f12_restart_ = options_.get_bool("F12_INTS_RESTART");
 
     std::vector<OrbitalSpace> bs_ = {};
     nobs_ = reference_wavefunction_->basisset()->nbf();
@@ -671,10 +672,6 @@ double DiskMP2F12::compute_energy()
     using namespace einsums;
     timer::initialize();
 
-    // Disable HDF5 diagnostic reporting
-    H5Eset_auto(0, nullptr, nullptr);
-    einsums::state::data = h5::create("Data.h5", H5F_ACC_TRUNC);
-
     print_header();
 
     /* Form the orbital spaces */
@@ -682,25 +679,48 @@ double DiskMP2F12::compute_energy()
     form_basissets();
     timer_off("OBS and CABS");
 
+    // Disable HDF5 diagnostic reporting.
+    H5Eset_auto(0, nullptr, nullptr);
+    std::string file_name = "Data_" + std::to_string(nocc_) + "_" + std::to_string(ncabs_);
+    if (use_df_) {
+        file_name += "_" + std::to_string(naux_);
+    }
+    file_name += ".h5";
+
+    if (f12_restart_) {
+        // Reads existing file
+        einsums::state::data = h5::open(file_name, H5F_ACC_RDWR);
+    } else {
+        // Creates new file
+        einsums::state::data = h5::create(file_name, H5F_ACC_TRUNC);
+    }
+
     outfile->Printf("\n ===> Forming the Integrals <===");
     outfile->Printf("\n No screening will be used to compute integrals\n\n");
 
     /* Form the one-electron integrals */
     auto h = std::make_unique<DiskTensor<double, 2>>(state::data, "MO One-Electron Integrals", nri_, nri_);
-    timer_on("OEINTS");
-    form_oeints(h.get());
-    timer_off("OEINTS");
-
+    if (!(*h).existed()) {
+        timer_on("OEINTS");
+        form_oeints(h.get());
+        timer_off("OEINTS");
+    }
 
     /* Form the two-electron integrals */
-    std::vector<std::string> teint = {"FG","Uf","G","F","F2"};
-
     // Two-Electron Integrals
     auto G = std::make_unique<DiskTensor<double, 4>>(state::data, "MO G Tensor", nocc_, nocc_, nobs_, nri_);
     auto F = std::make_unique<DiskTensor<double, 4>>(state::data, "MO F12 Tensor", nocc_, nocc_, nri_, nri_);
     auto F2 = std::make_unique<DiskTensor<double, 4>>(state::data, "MO F12_Squared Tensor", nocc_, nocc_, nocc_, nri_);
     auto FG = std::make_unique<DiskTensor<double, 4>>(state::data, "MO F12G12 Tensor", nocc_, nocc_, nocc_, nocc_);
     auto Uf = std::make_unique<DiskTensor<double, 4>>(state::data, "MO F12_DoubleCommutator Tensor", nocc_, nocc_, nocc_, nocc_);
+
+    std::vector<std::string> teint = {};
+    if (!(*FG).existed()) teint.push_back("FG");
+    if (!(*Uf).existed()) teint.push_back("Uf");
+    if (!(*G).existed()) teint.push_back("G");
+    if (!(*F).existed()) teint.push_back("F");
+    if (!(*F2).existed()) teint.push_back("F2");
+    if (teint.size() == 0) outfile->Printf("   Two-Electron Integrals\n");
 
     // Fock Matrices
     auto f = std::make_unique<DiskTensor<double, 2>>(state::data, "Fock Matrix", nri_, nri_);
@@ -713,9 +733,11 @@ double DiskMP2F12::compute_energy()
         form_metric_ints(Metric.get(), false);
 
         outfile->Printf("   Fock Matrix\n");
-        timer_on("Fock Matrix");
-        form_df_fock(f.get(), k.get(), fk.get(), h.get());
-        timer_off("Fock Matrix");
+        if (!(*f).existed() && !(*k).existed() && !(*fk).existed()) {
+            timer_on("Fock Matrix");
+            form_df_fock(f.get(), k.get(), fk.get(), h.get());
+            timer_off("Fock Matrix");
+        }
 
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
@@ -747,9 +769,11 @@ double DiskMP2F12::compute_energy()
         }
     } else {
         outfile->Printf("   Fock Matrix\n");
-        timer_on("Fock Matrix");
-        form_fock(f.get(), k.get(), fk.get(), h.get());
-        timer_off("Fock Matrix");
+        if (!(*f).existed() && !(*k).existed() && !(*fk).existed()) {
+            timer_on("Fock Matrix");
+            form_fock(f.get(), k.get(), fk.get(), h.get());
+            timer_off("Fock Matrix");
+        }
 
         for (int i = 0; i < teint.size(); i++){
             if ( teint[i] == "F" ){
@@ -790,28 +814,38 @@ double DiskMP2F12::compute_energy()
     auto D = std::make_unique<DiskTensor<double, 4>>(state::data, "D Tensor", nocc_, nocc_, nvir_, nvir_);
 
     outfile->Printf("   V Intermediate\n");
-    timer_on("V Intermediate");
-    form_V_or_X(V.get(), F.get(), G.get(), FG.get());
-    timer_off("V Intermediate");
+    if (!(*V).existed()) {
+        timer_on("V Intermediate");
+        form_V_or_X(V.get(), F.get(), G.get(), FG.get());
+        timer_off("V Intermediate");
+    }
 
     outfile->Printf("   X Intermediate\n");
-    timer_on("X Intermediate");
-    form_V_or_X(X.get(), F.get(), F.get(), F2.get());
-    timer_off("X Intermediate");
+    if (!(*X).existed()) {
+        timer_on("X Intermediate");
+        form_V_or_X(X.get(), F.get(), F.get(), F2.get());
+        timer_off("X Intermediate");
+    }
 
     outfile->Printf("   C Intermediate\n");
-    timer_on("C Intermediate");
-    form_C(C.get(), F.get(), f.get());
-    timer_off("C Intermediate");
+    if (!(*C).existed()) {
+        timer_on("C Intermediate");
+        form_C(C.get(), F.get(), f.get());
+        timer_off("C Intermediate");
+    }
 
     outfile->Printf("   B Intermediate\n");
-    timer_on("B Intermediate");
-    form_B(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get());
-    timer_off("B Intermediate");
+    if (!(*B).existed()) {
+        timer_on("B Intermediate");
+        form_B(B.get(), Uf.get(), F2.get(), F.get(), f.get(), fk.get(), k.get());
+        timer_off("B Intermediate");
+    }
 
-    timer_on("Energy Denom");
-    form_D(D.get(), f.get());
-    timer_off("Energy Denom");
+    if (!(*D).existed()) {
+        timer_on("Energy Denom");
+        form_D(D.get(), f.get());
+        timer_off("Energy Denom");
+    }
 
     /* Compute the MP2F12/3C Energy */
     outfile->Printf("\n ===> Computing F12/3C(FIX) Energy Correction <===\n");
@@ -827,7 +861,9 @@ double DiskMP2F12::compute_energy()
 
     print_results();
 
-    timer::report();
+    if (print_ > 2) {
+        timer::report();
+    }
     timer::finalize();
 
     // Typically you would build a new wavefunction and populate it with data

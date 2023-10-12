@@ -69,6 +69,9 @@ class MP2F12 : public Wavefunction {
     /* Bool to turn on DF */
     bool use_df_ = false;
 
+    /* Bool to read in precomputed F12 integrals */
+    bool f12_restart_ = false;
+
     /* List of orbital spaces: Orbital Basis Set (OBS) 
        and Complimentary Auxiliary Basis Set (CABS) */
     std::vector<OrbitalSpace> bs_;

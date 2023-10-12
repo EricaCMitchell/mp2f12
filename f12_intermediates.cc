@@ -290,7 +290,7 @@ void DiskMP2F12::form_fock(einsums::DiskTensor<double, 2> *f, einsums::DiskTenso
     {
         outfile->Printf("   \tForming J\n");
         auto J = std::make_unique<DiskTensor<double, 4>>(state::data, "Coulomb", nri_, nocc_, nri_, nocc_);
-        form_teints("J", J.get());
+        if (!(*J).existed()) form_teints("J", J.get());
 
         for (int i = 0; i < nocc_; i++) {
             auto J_view = (*J)(All, i, All, i);
@@ -304,7 +304,7 @@ void DiskMP2F12::form_fock(einsums::DiskTensor<double, 2> *f, einsums::DiskTenso
     {
         outfile->Printf("   \tForming K\n");
         auto K = std::make_unique<DiskTensor<double, 4>>(state::data, "Exchange", nri_, nocc_, nocc_, nri_);
-        form_teints("K", K.get());
+        if (!(*K).existed()) form_teints("K", K.get());
 
         auto k_view = (*k)(All, All);
         for (int i = 0; i < nocc_; i++) {

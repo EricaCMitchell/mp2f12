@@ -22,13 +22,11 @@ def test_f12_type(types,ref,tol):
 
   psi4.set_options({"basis" : "cc-pvdz-f12",
                     "freeze_core" : True,
-                    "e_convergence" : 1.e-10})
-
-  psi4.set_module_options("mp2f12",
-                          {"cabs_basis" : "cc-pvdz-f12-optri",
-                           "df_basis_f12" : "aug-cc-pvdz-ri",
-                           "f12_type" : types,
-                           "cabs_singles" : True})
+                    "e_convergence" : 1.e-10,
+                    "mp2f12__cabs_basis" : "cc-pvdz-f12-optri",
+                    "mp2f12__df_basis_f12" : "aug-cc-pvdz-ri",
+                    "mp2f12__f12_type" : types,
+                    "mp2f12__cabs_singles" : True})
 
   _, wfn = psi4.energy('mp2f12', return_wfn=True)
 

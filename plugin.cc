@@ -43,6 +43,8 @@ int read_options(std::string name, Options& options)
         options.add_int("PRINT", 0);
         /*- Choose conventional or density-fitted. Default to CONV -*/
         options.add_str("F12_TYPE", "CONV", "CONV DF DISK_CONV DISK_DF");
+         /*- Whether to restart calculation from stored integrals -*/
+        options.add_bool("F12_INTS_RESTART", false);
         /*- Set contracted Gaussian-type geminal beta value -*/
         options.add_double("F12_BETA", 1.0);
         /*- Choose a basis for Complementary Auxiliary Basis Set -*/

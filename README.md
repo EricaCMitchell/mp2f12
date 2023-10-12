@@ -34,7 +34,7 @@ git submodule update
 ## mp2f12
 Once the dependencies are loaded, the plugin can be made.
 ```
-`psi4 --plugin-compile` -S. -Bbuild
+cmake -S. -Bbuild -DLAPACK_LIBRARIES="/path/to/lib/libcblas.so;/path/to/lib/liblapack.so"
 cd build
 make
 mv mp2f12.so ..
@@ -46,6 +46,11 @@ mv mp2f12.so ..
     Defines which algorithm to use. 
     Allowed values are CONV, DF, DISK_CONV, and DISK_DF. 
     The default value is CONV.
+
+* **F12_INTS_RESTART** (bool):
+
+    Turns on the ability to read the integrals from
+    a past computation stored in the Data_*.h5 on disk.
 
 * **F12_BETA** (double):
     
