@@ -126,10 +126,10 @@ class MP2F12 : public Wavefunction {
     virtual void form_cabs_singles(einsums::Tensor<double,2> *f);
 
     /* Form the F12/3C(FIX) correlation energy */
-    virtual void form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<double,4> *X, 
-                         einsums::Tensor<double,4> *B, einsums::Tensor<double,4> *V,
-                         einsums::Tensor<double,2> *f, einsums::Tensor<double,4> *C, 
-                         einsums::Tensor<double,4> *D);
+    virtual void form_f12_energy(einsums::Tensor<double,4> *V, einsums::Tensor<double,4> *X,
+                                 einsums::Tensor<double,4> *C, einsums::Tensor<double,4> *B,
+                                 einsums::Tensor<double,2> *f, einsums::Tensor<double,4> G_,
+                                 einsums::Tensor<double,4> *D);
    
     /* Form the one-electron integrals H = T + V */
     virtual void form_oeints(einsums::Tensor<double, 2> *h);
@@ -138,7 +138,8 @@ class MP2F12 : public Wavefunction {
     virtual void form_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI);
     
     /* Form the density-fitted two-electron integrals */
-    virtual void form_df_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI, einsums::Tensor<double, 3> *Metric);
+    virtual void form_df_teints(const std::string& int_type, einsums::Tensor<double, 4> *ERI,
+                                einsums::Tensor<double, 3> *Metric);
     
     /* Form the Fock matrix */
     virtual void form_fock(einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *k,
@@ -150,7 +151,7 @@ class MP2F12 : public Wavefunction {
 
     /* Form the $V^{ij}_{kl}$ or $X^{ij}_{kl}$ tensor */
     virtual void form_V_or_X(einsums::Tensor<double, 4> *VX, einsums::Tensor<double, 4> *F,
-                     einsums::Tensor<double, 4> *G_F, einsums::Tensor<double, 4> *FG_F2);
+                           einsums::Tensor<double, 4> *G_F, einsums::Tensor<double, 4> *FG_F2);
     
     /* Form the $C^{kl}_{ab}$ tensor */
     virtual void form_C(einsums::Tensor<double, 4> *C, einsums::Tensor<double, 4> *F,
@@ -158,9 +159,9 @@ class MP2F12 : public Wavefunction {
     
     /* Form the $B^{kl}_{mn}$ tensor */
     virtual void form_B(einsums::Tensor<double, 4> *B, einsums::Tensor<double, 4> *Uf,
-                einsums::Tensor<double, 4> *F2, einsums::Tensor<double, 4> *F,
-                einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *fk,
-                einsums::Tensor<double, 2> *kk);
+                        einsums::Tensor<double, 4> *F2, einsums::Tensor<double, 4> *F,
+                        einsums::Tensor<double, 2> *f, einsums::Tensor<double, 2> *fk,
+                        einsums::Tensor<double, 2> *kk);
 
     void print_results();
 
@@ -217,9 +218,9 @@ class DiskMP2F12 : public MP2F12 {
     void form_cabs_singles(einsums::DiskTensor<double,2> *f);
 
     /* Form the F12/3C(FIX) correlation energy */
-    void form_f12_energy(einsums::DiskTensor<double,4> *G, einsums::DiskTensor<double,4> *X,
-                         einsums::DiskTensor<double,4> *B, einsums::DiskTensor<double,4> *V,
-                         einsums::DiskTensor<double,2> *f, einsums::DiskTensor<double,4> *C,
+    void form_f12_energy(einsums::DiskTensor<double,4> *V, einsums::DiskTensor<double,4> *X,
+                         einsums::DiskTensor<double,4> *C, einsums::DiskTensor<double,4> *B,
+                         einsums::DiskTensor<double,2> *f, einsums::DiskTensor<double,4> *G,
                          einsums::DiskTensor<double,4> *D);
 
     /* Form the one-electron integrals H = T + V */
@@ -257,8 +258,8 @@ class DiskMP2F12 : public MP2F12 {
 
     /* Form the $T^{ij}_{ij}\Tilde{V}^{ij}_{ij}$ contirbution to the energy */
     std::pair<double, double> V_Tilde(einsums::Tensor<double, 2>& V_ij, einsums::DiskTensor<double, 4> *C,
-                                      einsums::DiskView<double, 2, 4>& K_ij, einsums::DiskView<double, 2, 4>& D_ij,
-                                      const int& i, const int& j);
+                              einsums::DiskView<double, 2, 4>& K_ij, einsums::DiskView<double, 2, 4>& D_ij,
+                              const int& i, const int& j);
 
     /* Form the $T^{ij}_{ij}\Tilde{B}^{ij}_{ij}T^{ij}_{ij}$ contirbution to the energy */
     std::pair<double, double> B_Tilde(einsums::Tensor<double, 4>& B_ij, einsums::DiskTensor<double, 4> *C,

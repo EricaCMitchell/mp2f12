@@ -169,10 +169,10 @@ void MP2F12::form_D(einsums::Tensor<double, 4> *D, einsums::Tensor<double, 2> *f
     }
 }
 
-void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<double,4> *X, 
-                               einsums::Tensor<double,4> *B, einsums::Tensor<double,4> *V,
-                               einsums::Tensor<double,2> *f, einsums::Tensor<double,4> *C, 
-                               einsums::Tensor<double,4> *D)
+void MP2F12::form_f12_energy(einsums::Tensor<double,4> *V, einsums::Tensor<double,4> *X,
+                             einsums::Tensor<double,4> *C, einsums::Tensor<double,4> *B,
+                             einsums::Tensor<double,2> *f, einsums::Tensor<double,4> G_,
+                             einsums::Tensor<double,4> *D)
 {
     using namespace einsums;
     using namespace tensor_algebra;
@@ -181,8 +181,6 @@ void MP2F12::form_f12_energy(einsums::Tensor<double,4> *G, einsums::Tensor<doubl
     auto E_f12_s = 0.0;
     auto E_f12_t = 0.0;
     int kd;
-
-    auto G_ = (*G)(Range{0, nocc_}, Range{0, nocc_}, Range{nocc_, nobs_}, Range{nocc_, nobs_});
 
     outfile->Printf("  \n");
     outfile->Printf("  %1s   %1s  |     %14s     %14s     %12s \n",
@@ -384,9 +382,9 @@ double MP2F12::compute_energy()
     outfile->Printf("\n ===> Forming the F12 Intermediate Tensors <===\n");
     auto V = std::make_unique<Tensor<double, 4>>("V Intermediate Tensor", nocc_, nocc_, nocc_, nocc_);
     auto X = std::make_unique<Tensor<double, 4>>("X Intermediate Tensor", nocc_, nocc_, nocc_, nocc_);
-    auto C = std::make_unique<Tensor<double, 4>>("C Intermediate Tensor", nocc_, nocc_, nobs_ - nocc_, nobs_ - nocc_);
+    auto C = std::make_unique<Tensor<double, 4>>("C Intermediate Tensor", nocc_, nocc_, nvir_, nvir_);
     auto B = std::make_unique<Tensor<double, 4>>("B Intermediate Tensor", nocc_, nocc_, nocc_, nocc_);
-    auto D = std::make_unique<Tensor<double, 4>>("D Tensor", nocc_, nocc_, nobs_ - nocc_, nobs_ - nocc_);
+    auto D = std::make_unique<Tensor<double, 4>>("D Tensor", nocc_, nocc_, nvir_, nvir_);
 
     outfile->Printf("   V Intermediate\n");
     timer_on("V Intermediate");
@@ -420,7 +418,15 @@ double MP2F12::compute_energy()
     /* Compute the MP2F12/3C Energy */
     outfile->Printf("\n ===> Computing F12/3C(FIX) Energy Correction <===\n");
     timer_on("F12 Energy Correction");
-    form_f12_energy(G.get(), X.get(), B.get(), V.get(), f.get(), C.get(), D.get());
+    Tensor G_ijab = (*G)(Range{0, nocc_}, Range{0, nocc_}, Range{nocc_, nobs_}, Range{nocc_, nobs_});
+    G.reset();
+
+    form_f12_energy(V.get(), X.get(), C.get(), B.get(), f.get(), G_ijab, D.get());
+    V.reset();
+    X.reset();
+    C.reset();
+    B.reset();
+    D.reset();
     timer_off("F12 Energy Correction");
 
     if (singles_ == true) {
@@ -468,15 +474,13 @@ void MP2F12::print_results()
 
 double MP2F12::t_(const int& p, const int& q, const int& r, const int& s)
 {
-    auto t_amp = 0.0;
-    if (p == r && q == s && p != q) {
-        t_amp = 3.0/8.0;
-    } else if (q == r && p == s && p != q) {
-        t_amp = 1.0/8.0;
-    } else if (p == q && p == r && p == s) {
-        t_amp = 0.5;
+    if (p == q && p == r && p == s) {
+        return 0.5;
+    } else if (p == r && q == s) {
+        return 3.0/8.0;
+    } else if (q == r && p == s) {
+        return 1.0/8.0;
     }
-    return t_amp;
 }
 
 std::pair<double, double> MP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, einsums::Tensor<double, 4> *C,
@@ -571,9 +575,9 @@ void DiskMP2F12::form_D(einsums::DiskTensor<double, 4> *D, einsums::DiskTensor<d
     }
 }
 
-void DiskMP2F12::form_f12_energy(einsums::DiskTensor<double,4> *G, einsums::DiskTensor<double,4> *X,
-                                 einsums::DiskTensor<double,4> *B, einsums::DiskTensor<double,4> *V,
-                                 einsums::DiskTensor<double,2> *f, einsums::DiskTensor<double,4> *C,
+void DiskMP2F12::form_f12_energy(einsums::DiskTensor<double,4> *V, einsums::DiskTensor<double,4> *X,
+                                 einsums::DiskTensor<double,4> *C, einsums::DiskTensor<double,4> *B,
+                                 einsums::DiskTensor<double,2> *f, einsums::DiskTensor<double,4> *G,
                                  einsums::DiskTensor<double,4> *D)
 {
     using namespace einsums;
@@ -850,7 +854,7 @@ double DiskMP2F12::compute_energy()
     /* Compute the MP2F12/3C Energy */
     outfile->Printf("\n ===> Computing F12/3C(FIX) Energy Correction <===\n");
     timer_on("F12 Energy Correction");
-    form_f12_energy(G.get(), X.get(), B.get(), V.get(), f.get(), C.get(), D.get());
+    form_f12_energy(V.get(), X.get(), C.get(), B.get(), f.get(), G.get(), D.get());
     timer_off("F12 Energy Correction");
 
     if (singles_ == true) {
