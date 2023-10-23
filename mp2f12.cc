@@ -491,8 +491,7 @@ std::pair<double, double> MP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, eins
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    auto V_s = 0.0;
-    auto V_t = 0.0;
+    double V_s, V_t;
     int kd;
 
     {
@@ -519,8 +518,7 @@ std::pair<double, double> MP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, eins
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    auto B_s = 0.0;
-    auto B_t = 0.0;
+    double B_s, B_t;
     int kd;
 
     {
@@ -882,8 +880,7 @@ std::pair<double, double> DiskMP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, 
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    auto V_s = 0.0;
-    auto V_t = 0.0;
+    double V_s, V_t;
     int kd;
 
     {
@@ -902,10 +899,10 @@ std::pair<double, double> DiskMP2F12::V_Tilde(einsums::Tensor<double, 2>& V_ij, 
 
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
 
-    V_s += 0.5 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd * (V_ij(i, j) + V_ij(j, i));
+    V_s = 0.5 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd * (V_ij(i, j) + V_ij(j, i));
 
     if ( i != j ) {
-        V_t += 0.5 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd * (V_ij(i, j) - V_ij(j, i));
+        V_t = 0.5 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd * (V_ij(i, j) - V_ij(j, i));
     }
     return {V_s, V_t};
 }
@@ -917,8 +914,7 @@ std::pair<double, double> DiskMP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, 
     using namespace tensor_algebra;
     using namespace tensor_algebra::index;
 
-    auto B_s = 0.0;
-    auto B_t = 0.0;
+    double B_s, B_t;
     int kd;
 
     {
@@ -944,12 +940,12 @@ std::pair<double, double> DiskMP2F12::B_Tilde(einsums::Tensor<double, 4>& B_ij, 
 
     ( i == j ) ? ( kd = 1 ) : ( kd = 2 );
 
-    B_s += 0.125 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd
+    B_s = 0.125 * (t_(i, j, i, j) + t_(i, j, j, i)) * kd
                  * (B_ij(i, j, i, j) + B_ij(j, i, i, j))
                  * (t_(i, j, i, j) + t_(i, j, j, i)) * kd;
 
     if ( i != j ) {
-        B_t += 0.125 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd
+        B_t = 0.125 * (t_(i, j, i, j) - t_(i, j, j, i)) * kd
                      * (B_ij(i, j, i, j) - B_ij(j, i, i, j))
                      * (t_(i, j, i, j) - t_(i, j, j, i)) * kd;
     }
